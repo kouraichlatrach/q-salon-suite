@@ -434,13 +434,25 @@ function InviteDialog({
           ? myLocationId
           : locationId || null;
 
-    if (finalRole !== "owner" && !finalLocationId) {
+    if (!finalLocationId) {
       toast.error("Pick a location for this role.");
       return;
     }
 
     setSubmitting(true);
     try {
+      const { data: conflict, error: checkError } = await supabase.rpc(
+        "email_has_other_brand_account",
+        { _email: email.trim().toLowerCase(), _brand: brandId },
+      );
+      if (checkError) throw checkError;
+      if (conflict === true) {
+        toast.error("Email already in use", {
+          description: "This email is already associated with another salon account.",
+        });
+        return;
+      }
+
       const { error } = await supabase.from("user_roles").insert({
         brand_id: brandId,
         role: finalRole,
@@ -452,8 +464,8 @@ function InviteDialog({
         if (error.message.toLowerCase().includes("staff limit")) {
           toast.error("Plan limit reached", { description: error.message });
         } else if (error.code === "23505") {
-          toast.error("Already invited", {
-            description: "There's already a pending invite for that email.",
+          toast.error("Email already in use", {
+            description: "This email is already associated with another salon account.",
           });
         } else {
           throw error;

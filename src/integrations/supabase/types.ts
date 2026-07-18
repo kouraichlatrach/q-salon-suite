@@ -802,6 +802,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      email_has_other_brand_account: {
+        Args: { _brand: string; _email: string }
+        Returns: boolean
+      }
       get_user_brand: { Args: { _user_id: string }; Returns: string }
       has_location_access: {
         Args: { _location_id: string; _user_id: string }
