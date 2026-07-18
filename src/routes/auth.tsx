@@ -89,7 +89,7 @@ function AuthPage() {
       <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground md:flex">
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-foreground font-display font-semibold">
-            L
+            Q
           </div>
           <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
         </Link>
@@ -110,7 +110,7 @@ function AuthPage() {
           <div className="md:hidden">
             <Link to="/" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-                L
+                Q
               </div>
               <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
             </Link>

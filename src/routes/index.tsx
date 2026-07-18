@@ -14,7 +14,7 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-              L
+              Q
             </div>
             <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>
           </Link>

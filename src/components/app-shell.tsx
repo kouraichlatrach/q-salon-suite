@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
         <Link to="/app" className="mb-8 flex items-center gap-2 px-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-            L
+            Q
           </div>
           <span className="font-display text-base font-semibold text-sidebar-foreground">
             Q-Salon
