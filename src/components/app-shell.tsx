@@ -9,10 +9,15 @@ import {
   Settings,
   LogOut,
   Sparkles,
+  ShieldCheck,
+  Inbox,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant, type AppRole } from "@/hooks/use-tenant";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type NavItem = { label: string; to: string; icon: typeof CalendarClock };
 
@@ -50,13 +55,36 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
 export function AppShell({ children }: { children: ReactNode }) {
   const tenant = useTenant();
   const navigate = useNavigate();
-  const role = tenant.data?.primaryRole ?? "staff";
-  const nav = NAV_BY_ROLE[role];
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
+  if (tenant.isLoading || !tenant.data) {
+    return (
+      <div className="min-h-screen bg-background p-8">
+        <Skeleton className="mb-4 h-12 w-64" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  const role = tenant.data.primaryRole;
+
+  // No brand membership — render a friendly state instead of a broken staff nav.
+  if (!role) {
+    return (
+      <NoBrandLanding
+        isPlatformAdmin={tenant.data.isPlatformAdmin}
+        email={tenant.data.email}
+        fullName={tenant.data.fullName}
+        onSignOut={handleSignOut}
+      />
+    );
+  }
+
+  const nav = NAV_BY_ROLE[role];
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -89,7 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="border-t border-sidebar-border pt-3">
           <div className="mb-2 px-3">
             <div className="truncate text-sm font-medium text-sidebar-foreground">
-              {tenant.data?.fullName ?? tenant.data?.email}
+              {tenant.data.fullName ?? tenant.data.email}
             </div>
             <div className="text-xs capitalize text-sidebar-foreground/60">{role}</div>
           </div>
@@ -103,6 +131,89 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="flex-1 overflow-x-hidden">{children}</main>
+    </div>
+  );
+}
+
+function NoBrandLanding({
+  isPlatformAdmin,
+  email,
+  fullName,
+  onSignOut,
+}: {
+  isPlatformAdmin: boolean;
+  email: string | null;
+  fullName: string | null;
+  onSignOut: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="flex items-center justify-between border-b border-border px-6 py-4">
+        <Link to="/app" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
+            Q
+          </div>
+          <span className="font-display text-base font-semibold">Q-Salon Suite</span>
+        </Link>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="hidden text-muted-foreground sm:inline">
+            {fullName ?? email}
+          </span>
+          <Button variant="ghost" size="sm" onClick={onSignOut}>
+            <LogOut className="mr-2 h-4 w-4" /> Sign out
+          </Button>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-xl px-6 py-16">
+        {isPlatformAdmin ? (
+          <Card>
+            <CardHeader>
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <CardTitle className="font-display text-2xl">Platform admin account</CardTitle>
+              <CardDescription>
+                This account is a platform admin and isn't part of any salon. Go to the admin
+                console to manage subscriptions, or sign up as a salon owner from a different
+                account to create one.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link to="/admin">Open admin console</Link>
+              </Button>
+              <Button variant="outline" onClick={onSignOut}>
+                Sign out
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Inbox className="h-5 w-5" />
+              </div>
+              <CardTitle className="font-display text-2xl">
+                Your account isn't linked to a salon yet
+              </CardTitle>
+              <CardDescription>
+                If you were invited by an owner, check that the invite used this exact email
+                address ({email ?? "your email"}) and ask them to re-send it if needed.
+                Otherwise, you can create a new salon of your own.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              <Button asChild>
+                <Link to="/app/setup">Create a salon</Link>
+              </Button>
+              <Button variant="outline" onClick={onSignOut}>
+                Sign out
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
