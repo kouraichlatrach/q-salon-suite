@@ -13,6 +13,8 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppStaffRouteImport } from './routes/_authenticated/app.staff'
 import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenticated/app.services'
@@ -20,6 +22,7 @@ import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppClientsRouteImport } from './routes/_authenticated/app.clients'
 import { Route as AuthenticatedAppAppointmentsRouteImport } from './routes/_authenticated/app.appointments'
 import { Route as AuthenticatedAppClientsIdRouteImport } from './routes/_authenticated/app.clients.$id'
+import { Route as AuthenticatedAdminBrandsIdRouteImport } from './routes/_authenticated/admin.brands.$id'
 import { Route as AuthenticatedAppStaffIdScheduleRouteImport } from './routes/_authenticated/app.staff.$id.schedule'
 
 const AuthRoute = AuthRouteImport.update({
@@ -40,6 +43,16 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
   id: '/stock',
@@ -79,6 +92,12 @@ const AuthenticatedAppClientsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedAppClientsRoute,
   } as any)
+const AuthenticatedAdminBrandsIdRoute =
+  AuthenticatedAdminBrandsIdRouteImport.update({
+    id: '/brands/$id',
+    path: '/brands/$id',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAppStaffIdScheduleRoute =
   AuthenticatedAppStaffIdScheduleRouteImport.update({
     id: '/$id/schedule',
@@ -89,6 +108,7 @@ const AuthenticatedAppStaffIdScheduleRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
@@ -96,6 +116,8 @@ export interface FileRoutesByFullPath {
   '/app/services': typeof AuthenticatedAppServicesRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
   '/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
   '/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
@@ -109,6 +131,8 @@ export interface FileRoutesByTo {
   '/app/services': typeof AuthenticatedAppServicesRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
   '/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
   '/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
@@ -117,6 +141,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
@@ -124,6 +149,8 @@ export interface FileRoutesById {
   '/_authenticated/app/services': typeof AuthenticatedAppServicesRoute
   '/_authenticated/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
   '/_authenticated/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
   '/_authenticated/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
@@ -132,6 +159,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/admin'
     | '/app'
     | '/app/appointments'
     | '/app/clients'
@@ -139,6 +167,8 @@ export interface FileRouteTypes {
     | '/app/services'
     | '/app/staff'
     | '/app/stock'
+    | '/admin/'
+    | '/admin/brands/$id'
     | '/app/clients/$id'
     | '/app/staff/$id/schedule'
   fileRoutesByTo: FileRoutesByTo
@@ -152,6 +182,8 @@ export interface FileRouteTypes {
     | '/app/services'
     | '/app/staff'
     | '/app/stock'
+    | '/admin'
+    | '/admin/brands/$id'
     | '/app/clients/$id'
     | '/app/staff/$id/schedule'
   id:
@@ -159,6 +191,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/app/appointments'
     | '/_authenticated/app/clients'
@@ -166,6 +199,8 @@ export interface FileRouteTypes {
     | '/_authenticated/app/services'
     | '/_authenticated/app/staff'
     | '/_authenticated/app/stock'
+    | '/_authenticated/admin/'
+    | '/_authenticated/admin/brands/$id'
     | '/_authenticated/app/clients/$id'
     | '/_authenticated/app/staff/$id/schedule'
   fileRoutesById: FileRoutesById
@@ -205,6 +240,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/app'
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/app/stock': {
       id: '/_authenticated/app/stock'
@@ -255,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppClientsIdRouteImport
       parentRoute: typeof AuthenticatedAppClientsRoute
     }
+    '/_authenticated/admin/brands/$id': {
+      id: '/_authenticated/admin/brands/$id'
+      path: '/brands/$id'
+      fullPath: '/admin/brands/$id'
+      preLoaderRoute: typeof AuthenticatedAdminBrandsIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/app/staff/$id/schedule': {
       id: '/_authenticated/app/staff/$id/schedule'
       path: '/$id/schedule'
@@ -264,6 +320,19 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminBrandsIdRoute: typeof AuthenticatedAdminBrandsIdRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminBrandsIdRoute: AuthenticatedAdminBrandsIdRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
 interface AuthenticatedAppClientsRouteChildren {
   AuthenticatedAppClientsIdRoute: typeof AuthenticatedAppClientsIdRoute
@@ -314,10 +383,12 @@ const AuthenticatedAppRouteWithChildren =
   AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
 }
 
