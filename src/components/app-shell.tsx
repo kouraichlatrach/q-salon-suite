@@ -25,7 +25,7 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { label: "Stock", to: "/app/stock", icon: Package },
     { label: "Locations", to: "/app", icon: MapPin },
     { label: "Staff", to: "/app/staff", icon: Users },
-    { label: "Reports", to: "/app", icon: TrendingUp },
+    { label: "Reports", to: "/app/reports", icon: TrendingUp },
     { label: "Settings", to: "/app", icon: Settings },
   ],
   manager: [
@@ -35,7 +35,7 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { label: "Services", to: "/app/services", icon: Sparkles },
     { label: "Stock", to: "/app/stock", icon: Package },
     { label: "Staff", to: "/app/staff", icon: Users },
-    { label: "Reports", to: "/app", icon: TrendingUp },
+    { label: "Reports", to: "/app/reports", icon: TrendingUp },
   ],
   receptionist: [
     { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
