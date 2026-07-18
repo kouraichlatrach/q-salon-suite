@@ -57,8 +57,7 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast({
-          title: "Account created",
+        toast.success("Account created", {
           description: "You're signed in. Let's set up your salon.",
         });
         navigate({ to: "/app" });
@@ -68,10 +67,8 @@ function AuthPage() {
         navigate({ to: redirect ?? "/app" });
       }
     } catch (err) {
-      toast({
-        title: mode === "signup" ? "Could not create account" : "Sign in failed",
+      toast.error(mode === "signup" ? "Could not create account" : "Sign in failed", {
         description: err instanceof Error ? err.message : "Please try again.",
-        variant: "destructive",
       });
     } finally {
       setLoading(false);
