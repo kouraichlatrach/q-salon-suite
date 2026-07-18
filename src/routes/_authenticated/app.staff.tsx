@@ -49,7 +49,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/app/staff")({
   head: () => ({
-    meta: [{ title: "Staff — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Staff — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: StaffPage,
 });
@@ -485,7 +485,7 @@ function InviteDialog({
       // Store optional name hint in profiles once the user signs up we'll overwrite.
       // For now, just show success with the invite email.
       toast.success("Invite created", {
-        description: `Ask ${name || email} to sign up at your Lumen URL with this email.`,
+        description: `Ask ${name || email} to sign up at your Q-Salon URL with this email.`,
       });
       onDone();
       onOpenChange(false);

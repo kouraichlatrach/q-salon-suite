@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const Route = createFileRoute("/_authenticated/app/clients")({
   head: () => ({
-    meta: [{ title: "Clients — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Clients — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: ClientsPage,
 });

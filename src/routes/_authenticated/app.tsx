@@ -22,7 +22,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
-    meta: [{ title: "Dashboard — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Dashboard — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: AppPage,
 });
@@ -105,7 +105,7 @@ function Onboarding() {
       });
       if (roleErr) throw roleErr;
 
-      toast.success("Welcome to Lumen!", { description: `${brandName} is set up.` });
+      toast.success("Welcome to Q-Salon!", { description: `${brandName} is set up.` });
       await tenant.refetch();
       navigate({ to: "/app" });
     } catch (err) {
@@ -124,7 +124,7 @@ function Onboarding() {
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
             L
           </div>
-          <span className="font-display text-lg font-semibold">Lumen Salon Suite</span>
+          <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
         </div>
 
         <div className="mb-8">

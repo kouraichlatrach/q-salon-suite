@@ -47,7 +47,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/app/appointments")({
   head: () => ({
-    meta: [{ title: "Appointments — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Appointments — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: AppointmentsPage,
 });

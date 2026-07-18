@@ -59,7 +59,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/app/reports")({
   head: () => ({
     meta: [
-      { title: "Reports — Lumen Salon Suite" },
+      { title: "Reports — Q-Salon Suite" },
       { name: "robots", content: "noindex" },
     ],
   }),

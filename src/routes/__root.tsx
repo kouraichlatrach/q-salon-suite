@@ -79,14 +79,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lumen Salon Suite — Salon Management for Qatar" },
+      { title: "Q-Salon Suite — Salon Management for Qatar" },
       {
         name: "description",
         content:
           "Multi-location salon management for Qatar: appointments, staff, stock, clients and income in one clean workspace.",
       },
-      { name: "author", content: "Lumen Salon Suite" },
-      { property: "og:title", content: "Lumen Salon Suite — Salon Management for Qatar" },
+      { name: "author", content: "Q-Salon Suite" },
+      { property: "og:title", content: "Q-Salon Suite — Salon Management for Qatar" },
       {
         property: "og:description",
         content:

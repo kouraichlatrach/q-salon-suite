@@ -43,7 +43,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 export const Route = createFileRoute("/_authenticated/app/stock")({
   head: () => ({
     meta: [
-      { title: "Stock — Lumen Salon Suite" },
+      { title: "Stock — Q-Salon Suite" },
       { name: "robots", content: "noindex" },
     ],
   }),

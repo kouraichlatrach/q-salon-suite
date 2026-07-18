@@ -24,7 +24,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/app/staff/$id/schedule")({
   head: () => ({
-    meta: [{ title: "Staff schedule — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Staff schedule — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: SchedulePage,
 });

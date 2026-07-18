@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/app/clients/$id")({
   head: () => ({
-    meta: [{ title: "Client — Lumen Salon Suite" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Client — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: ClientDetailPage,
 });
