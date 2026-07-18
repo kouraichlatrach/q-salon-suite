@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             L
           </div>
           <span className="font-display text-base font-semibold text-sidebar-foreground">
-            Lumen
+            Q-Salon
           </span>
         </Link>
         <nav className="flex-1 space-y-1">
