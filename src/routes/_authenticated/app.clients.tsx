@@ -315,6 +315,7 @@ function ClientsPage() {
         />
       )}
     </div>
+    </AppShell>
   );
 }
 
