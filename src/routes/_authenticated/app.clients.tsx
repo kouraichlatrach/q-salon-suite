@@ -151,25 +151,30 @@ function ClientsPage() {
 
   if (tenant.isLoading) {
     return (
-      <div className="p-8">
-        <Skeleton className="h-10 w-64 mb-4" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <AppShell>
+        <div className="p-8">
+          <Skeleton className="h-10 w-64 mb-4" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+      </AppShell>
     );
   }
 
   if (isStaff) {
     return (
-      <div className="p-8">
-        <h1 className="font-display text-2xl font-semibold">Not available</h1>
-        <p className="text-muted-foreground mt-2 text-sm">
-          The client list isn't available for your role. You can view clients from your own appointments.
-        </p>
-      </div>
+      <AppShell>
+        <div className="p-8">
+          <h1 className="font-display text-2xl font-semibold">Not available</h1>
+          <p className="text-muted-foreground mt-2 text-sm">
+            The client list isn't available for your role. You can view clients from your own appointments.
+          </p>
+        </div>
+      </AppShell>
     );
   }
 
   return (
+    <AppShell>
     <div className="p-6 md:p-10">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
