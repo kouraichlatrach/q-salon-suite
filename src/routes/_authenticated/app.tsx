@@ -41,6 +41,12 @@ function AppPage() {
 
   if (!tenant.data) return null;
 
+  // Platform admins without a brand get the admin CTA via AppShell,
+  // not the salon-owner onboarding wizard.
+  if (!tenant.data.brandId && tenant.data.isPlatformAdmin) {
+    return <AppShell>{null}</AppShell>;
+  }
+
   if (!tenant.data.brandId) {
     return <Onboarding />;
   }
