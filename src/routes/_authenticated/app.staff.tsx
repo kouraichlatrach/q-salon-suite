@@ -214,7 +214,7 @@ function StaffContent() {
     );
   }, [staff, myRole, myLocationId, myUserId]);
 
-  const activeCount = staff.length;
+  const activeCount = staff.filter((s) => s.role !== "owner").length;
   const maxStaff = brand?.max_staff_accounts ?? 0;
   const atLimit = activeCount >= maxStaff;
 
