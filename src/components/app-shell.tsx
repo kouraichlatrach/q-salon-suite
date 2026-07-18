@@ -205,7 +205,7 @@ function NoBrandLanding({
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               <Button asChild>
-                <Link to="/app/setup">Create a salon</Link>
+                <Link to="/app">Create a salon</Link>
               </Button>
               <Button variant="outline" onClick={onSignOut}>
                 Sign out
