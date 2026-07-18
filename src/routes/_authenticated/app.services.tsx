@@ -42,7 +42,7 @@ import {
 export const Route = createFileRoute("/_authenticated/app/services")({
   head: () => ({
     meta: [
-      { title: "Services — Lumen Salon Suite" },
+      { title: "Services — Q-Salon Suite" },
       { name: "robots", content: "noindex" },
     ],
   }),

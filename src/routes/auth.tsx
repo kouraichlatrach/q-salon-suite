@@ -17,7 +17,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: (search) => searchSchema.parse(search),
   head: () => ({
     meta: [
-      { title: "Sign in — Lumen Salon Suite" },
+      { title: "Sign in — Q-Salon Suite" },
       { name: "description", content: "Sign in or create your salon brand account." },
       { name: "robots", content: "noindex" },
     ],
@@ -89,9 +89,9 @@ function AuthPage() {
       <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground md:flex">
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-foreground font-display font-semibold">
-            L
+            Q
           </div>
-          <span className="font-display text-lg font-semibold">Lumen Salon Suite</span>
+          <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
         </Link>
         <div>
           <h2 className="max-w-md font-display text-4xl font-semibold leading-tight tracking-tight">
@@ -110,9 +110,9 @@ function AuthPage() {
           <div className="md:hidden">
             <Link to="/" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-                L
+                Q
               </div>
-              <span className="font-display text-lg font-semibold">Lumen Salon Suite</span>
+              <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
             </Link>
           </div>
           <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight md:mt-0">
@@ -168,7 +168,7 @@ function AuthPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === "signup" ? "Already have an account?" : "New to Lumen?"}{" "}
+            {mode === "signup" ? "Already have an account?" : "New to Q-Salon?"}{" "}
             <button
               type="button"
               onClick={() => setMode(mode === "signup" ? "signin" : "signup")}

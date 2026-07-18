@@ -14,9 +14,9 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-              L
+              Q
             </div>
-            <span className="font-display text-lg font-semibold tracking-tight">Lumen Salon Suite</span>
+            <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>
           </Link>
           <nav className="flex items-center gap-2">
             <Link to="/auth">
@@ -134,7 +134,7 @@ function Landing() {
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-6xl px-6 py-8 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} Lumen Salon Suite. Made for Qatar.
+          © {new Date().getFullYear()} Q-Salon Suite. Made for Qatar.
         </div>
       </footer>
     </div>
