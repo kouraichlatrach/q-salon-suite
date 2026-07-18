@@ -106,7 +106,7 @@ function AppointmentsPage() {
       </AppShell>
     );
   }
-  if (!tenant.data?.brandId) return null;
+  if (!tenant.data?.brandId) return <AppShell>{null}</AppShell>;
   const role = tenant.data.primaryRole;
   if (role === "staff") {
     return <AppShell><MyAppointments /></AppShell>;
