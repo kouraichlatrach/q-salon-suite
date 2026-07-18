@@ -41,7 +41,7 @@ function SchedulePage() {
   const navigate = useNavigate();
 
   if (tenant.isLoading) return <AppShell><div className="p-8"><Skeleton className="h-96" /></div></AppShell>;
-  if (!tenant.data?.brandId) return null;
+  if (!tenant.data?.brandId) return <AppShell>{null}</AppShell>;
 
   const role = tenant.data.primaryRole;
   const canEdit = role === "owner" || role === "manager";
