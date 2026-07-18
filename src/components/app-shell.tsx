@@ -19,7 +19,7 @@ type NavItem = { label: string; to: string; icon: typeof CalendarClock };
 const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   owner: [
     { label: "Overview", to: "/app", icon: TrendingUp },
-    { label: "Appointments", to: "/app", icon: CalendarClock },
+    { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Services", to: "/app", icon: Sparkles },
     { label: "Stock", to: "/app", icon: Package },
@@ -30,19 +30,19 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   ],
   manager: [
     { label: "Overview", to: "/app", icon: TrendingUp },
-    { label: "Appointments", to: "/app", icon: CalendarClock },
+    { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Stock", to: "/app", icon: Package },
     { label: "Staff", to: "/app/staff", icon: Users },
     { label: "Reports", to: "/app", icon: TrendingUp },
   ],
   receptionist: [
-    { label: "Appointments", to: "/app", icon: CalendarClock },
+    { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Stock", to: "/app", icon: Package },
   ],
   staff: [
-    { label: "My appointments", to: "/app", icon: CalendarClock },
+    { label: "My appointments", to: "/app/appointments", icon: CalendarClock },
   ],
 };
 

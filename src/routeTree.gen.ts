@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppStaffRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppClientsRouteImport } from './routes/_authenticated/app.clients'
 import { Route as AuthenticatedAppAppointmentsRouteImport } from './routes/_authenticated/app.appointments'
 import { Route as AuthenticatedAppClientsIdRouteImport } from './routes/_authenticated/app.clients.$id'
+import { Route as AuthenticatedAppStaffIdScheduleRouteImport } from './routes/_authenticated/app.staff.$id.schedule'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -59,6 +60,12 @@ const AuthenticatedAppClientsIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedAppClientsRoute,
   } as any)
+const AuthenticatedAppStaffIdScheduleRoute =
+  AuthenticatedAppStaffIdScheduleRouteImport.update({
+    id: '/$id/schedule',
+    path: '/$id/schedule',
+    getParentRoute: () => AuthenticatedAppStaffRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,8 +73,9 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
-  '/app/staff': typeof AuthenticatedAppStaffRoute
+  '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
+  '/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,8 +83,9 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
-  '/app/staff': typeof AuthenticatedAppStaffRoute
+  '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
+  '/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,8 +95,9 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
-  '/_authenticated/app/staff': typeof AuthenticatedAppStaffRoute
+  '/_authenticated/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/_authenticated/app/clients/$id': typeof AuthenticatedAppClientsIdRoute
+  '/_authenticated/app/staff/$id/schedule': typeof AuthenticatedAppStaffIdScheduleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,6 +109,7 @@ export interface FileRouteTypes {
     | '/app/clients'
     | '/app/staff'
     | '/app/clients/$id'
+    | '/app/staff/$id/schedule'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -108,6 +119,7 @@ export interface FileRouteTypes {
     | '/app/clients'
     | '/app/staff'
     | '/app/clients/$id'
+    | '/app/staff/$id/schedule'
   id:
     | '__root__'
     | '/'
@@ -118,6 +130,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/clients'
     | '/_authenticated/app/staff'
     | '/_authenticated/app/clients/$id'
+    | '/_authenticated/app/staff/$id/schedule'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppClientsIdRouteImport
       parentRoute: typeof AuthenticatedAppClientsRoute
     }
+    '/_authenticated/app/staff/$id/schedule': {
+      id: '/_authenticated/app/staff/$id/schedule'
+      path: '/$id/schedule'
+      fullPath: '/app/staff/$id/schedule'
+      preLoaderRoute: typeof AuthenticatedAppStaffIdScheduleRouteImport
+      parentRoute: typeof AuthenticatedAppStaffRoute
+    }
   }
 }
 
@@ -201,16 +221,29 @@ const AuthenticatedAppClientsRouteWithChildren =
     AuthenticatedAppClientsRouteChildren,
   )
 
+interface AuthenticatedAppStaffRouteChildren {
+  AuthenticatedAppStaffIdScheduleRoute: typeof AuthenticatedAppStaffIdScheduleRoute
+}
+
+const AuthenticatedAppStaffRouteChildren: AuthenticatedAppStaffRouteChildren = {
+  AuthenticatedAppStaffIdScheduleRoute: AuthenticatedAppStaffIdScheduleRoute,
+}
+
+const AuthenticatedAppStaffRouteWithChildren =
+  AuthenticatedAppStaffRoute._addFileChildren(
+    AuthenticatedAppStaffRouteChildren,
+  )
+
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAppointmentsRoute: typeof AuthenticatedAppAppointmentsRoute
   AuthenticatedAppClientsRoute: typeof AuthenticatedAppClientsRouteWithChildren
-  AuthenticatedAppStaffRoute: typeof AuthenticatedAppStaffRoute
+  AuthenticatedAppStaffRoute: typeof AuthenticatedAppStaffRouteWithChildren
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAppointmentsRoute: AuthenticatedAppAppointmentsRoute,
   AuthenticatedAppClientsRoute: AuthenticatedAppClientsRouteWithChildren,
-  AuthenticatedAppStaffRoute: AuthenticatedAppStaffRoute,
+  AuthenticatedAppStaffRoute: AuthenticatedAppStaffRouteWithChildren,
 }
 
 const AuthenticatedAppRouteWithChildren =
