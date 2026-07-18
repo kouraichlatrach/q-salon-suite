@@ -1,10 +1,11 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { useTenant, type AppRole } from "@/hooks/use-tenant";
+import { useTenant } from "@/hooks/use-tenant";
 import { PLAN_LIMITS, PLAN_FEATURES, type PlanTier } from "@/lib/plan-limits";
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,9 +16,6 @@ import {
   Users,
   Package,
   TrendingUp,
-  MapPin,
-  Settings,
-  LogOut,
   Check,
   Sparkles,
 } from "lucide-react";
@@ -43,16 +41,19 @@ function AppPage() {
 
   if (!tenant.data) return null;
 
-  // Not onboarded — no brand yet — show onboarding
   if (!tenant.data.brandId) {
     return <Onboarding />;
   }
 
-  return <Dashboard />;
+  return (
+    <AppShell>
+      <Dashboard />
+    </AppShell>
+  );
 }
 
 // ============================================================
-// ONBOARDING — create brand + first location + choose plan
+// ONBOARDING
 // ============================================================
 
 function Onboarding() {
@@ -71,7 +72,6 @@ function Onboarding() {
     setLoading(true);
     try {
       const limits = PLAN_LIMITS[plan];
-      // 1. Create brand
       const { data: brand, error: brandErr } = await supabase
         .from("brands")
         .insert({
@@ -87,20 +87,16 @@ function Onboarding() {
         .single();
       if (brandErr) throw brandErr;
 
-      // 2. Create first location
-      const { data: location, error: locErr } = await supabase
+      const { error: locErr } = await supabase
         .from("locations")
         .insert({
           brand_id: brand.id,
           name: locName.trim(),
           address: locAddress.trim() || null,
           phone: locPhone.trim() || null,
-        })
-        .select("id")
-        .single();
+        });
       if (locErr) throw locErr;
 
-      // 3. Owner role assignment (brand-wide)
       const { error: roleErr } = await supabase.from("user_roles").insert({
         user_id: tenant.data.userId,
         role: "owner",
@@ -110,7 +106,6 @@ function Onboarding() {
       if (roleErr) throw roleErr;
 
       toast.success("Welcome to Lumen!", { description: `${brandName} is set up.` });
-      // Refresh tenant context and navigate
       await tenant.refetch();
       navigate({ to: "/app" });
     } catch (err) {
@@ -146,9 +141,7 @@ function Onboarding() {
                   {step > n ? <Check className="h-4 w-4" /> : n}
                 </div>
                 {n < 3 && (
-                  <div
-                    className={`h-px flex-1 ${step > n ? "bg-accent" : "bg-border"}`}
-                  />
+                  <div className={`h-px flex-1 ${step > n ? "bg-accent" : "bg-border"}`} />
                 )}
               </div>
             ))}
@@ -164,7 +157,9 @@ function Onboarding() {
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-2xl">Name your salon brand</CardTitle>
-              <CardDescription>This is the parent brand under which all your locations live.</CardDescription>
+              <CardDescription>
+                This is the parent brand under which all your locations live.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -190,7 +185,9 @@ function Onboarding() {
           <div className="space-y-4">
             <div>
               <h2 className="font-display text-2xl font-semibold">Choose your plan</h2>
-              <p className="text-sm text-muted-foreground">You can change plans anytime. Billed offline via bank transfer.</p>
+              <p className="text-sm text-muted-foreground">
+                You can change plans anytime. Billed offline via bank transfer.
+              </p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {(Object.keys(PLAN_LIMITS) as PlanTier[]).map((p) => {
@@ -224,7 +221,9 @@ function Onboarding() {
               })}
             </div>
             <div className="flex justify-between pt-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
+              <Button variant="ghost" onClick={() => setStep(1)}>
+                Back
+              </Button>
               <Button onClick={() => setStep(3)}>Continue</Button>
             </div>
           </div>
@@ -234,23 +233,43 @@ function Onboarding() {
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-2xl">Add your first location</CardTitle>
-              <CardDescription>You can add more locations later from settings.</CardDescription>
+              <CardDescription>
+                You can add more locations later from settings.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="ln">Location name</Label>
-                <Input id="ln" value={locName} onChange={(e) => setLocName(e.target.value)} placeholder="e.g. Al Sadd Flagship" required />
+                <Input
+                  id="ln"
+                  value={locName}
+                  onChange={(e) => setLocName(e.target.value)}
+                  placeholder="e.g. Al Sadd Flagship"
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="la">Address (optional)</Label>
-                <Input id="la" value={locAddress} onChange={(e) => setLocAddress(e.target.value)} placeholder="Street, area, Doha" />
+                <Input
+                  id="la"
+                  value={locAddress}
+                  onChange={(e) => setLocAddress(e.target.value)}
+                  placeholder="Street, area, Doha"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="lp">Phone (optional)</Label>
-                <Input id="lp" value={locPhone} onChange={(e) => setLocPhone(e.target.value)} placeholder="+974 ..." />
+                <Input
+                  id="lp"
+                  value={locPhone}
+                  onChange={(e) => setLocPhone(e.target.value)}
+                  placeholder="+974 ..."
+                />
               </div>
               <div className="flex justify-between pt-2">
-                <Button variant="ghost" onClick={() => setStep(2)}>Back</Button>
+                <Button variant="ghost" onClick={() => setStep(2)}>
+                  Back
+                </Button>
                 <Button onClick={finish} disabled={loading || !locName.trim()}>
                   {loading ? "Setting up..." : "Finish setup"}
                 </Button>
@@ -264,140 +283,65 @@ function Onboarding() {
 }
 
 // ============================================================
-// DASHBOARD — role-aware shell
+// DASHBOARD
 // ============================================================
-
-const NAV_BY_ROLE: Record<AppRole, { label: string; to: string; icon: typeof CalendarClock }[]> = {
-  owner: [
-    { label: "Overview", to: "/app", icon: TrendingUp },
-    { label: "Appointments", to: "/app", icon: CalendarClock },
-    { label: "Clients", to: "/app", icon: Users },
-    { label: "Services", to: "/app", icon: Sparkles },
-    { label: "Stock", to: "/app", icon: Package },
-    { label: "Locations", to: "/app", icon: MapPin },
-    { label: "Staff", to: "/app", icon: Users },
-    { label: "Reports", to: "/app", icon: TrendingUp },
-    { label: "Settings", to: "/app", icon: Settings },
-  ],
-  manager: [
-    { label: "Overview", to: "/app", icon: TrendingUp },
-    { label: "Appointments", to: "/app", icon: CalendarClock },
-    { label: "Clients", to: "/app", icon: Users },
-    { label: "Stock", to: "/app", icon: Package },
-    { label: "Staff", to: "/app", icon: Users },
-    { label: "Reports", to: "/app", icon: TrendingUp },
-  ],
-  receptionist: [
-    { label: "Appointments", to: "/app", icon: CalendarClock },
-    { label: "Clients", to: "/app", icon: Users },
-    { label: "Stock", to: "/app", icon: Package },
-  ],
-  staff: [
-    { label: "My appointments", to: "/app", icon: CalendarClock },
-  ],
-};
 
 function Dashboard() {
   const tenant = useTenant();
-  const navigate = useNavigate();
-  const role = tenant.data?.primaryRole ?? "staff";
-  const nav = NAV_BY_ROLE[role];
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
-  }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <Link to="/app" className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-            L
-          </div>
-          <span className="font-display text-base font-semibold text-sidebar-foreground">Lumen</span>
-        </Link>
-        <nav className="flex-1 space-y-1">
-          {nav.map((item) => (
-            <Link
-              key={item.label}
-              to={item.to}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
+    <>
+      <header className="border-b border-border bg-background/80 px-6 py-4 backdrop-blur md:px-10">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">
+          Welcome back
+          {tenant.data?.fullName ? `, ${tenant.data.fullName.split(" ")[0]}` : ""}
+        </h1>
+        <p className="text-sm text-muted-foreground">Here's your salon at a glance.</p>
+      </header>
+
+      <div className="p-6 md:p-10">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: "Today's appointments", value: "—", icon: CalendarClock },
+            { label: "Revenue today", value: "QAR 0", icon: TrendingUp },
+            { label: "Active clients", value: "—", icon: Users },
+            { label: "Low stock items", value: "—", icon: Package },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {k.label}
+                </CardTitle>
+                <k.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="font-display text-3xl font-semibold">{k.value}</div>
+              </CardContent>
+            </Card>
           ))}
-        </nav>
-        <div className="border-t border-sidebar-border pt-3">
-          <div className="mb-2 px-3">
-            <div className="truncate text-sm font-medium text-sidebar-foreground">
-              {tenant.data?.fullName ?? tenant.data?.email}
+        </div>
+
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="font-display text-xl">You're all set up</CardTitle>
+            <CardDescription>
+              Your brand and first location are live. Feature modules will appear here as we
+              build them out for your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg bg-secondary p-4 text-sm text-secondary-foreground">
+              <div className="font-medium">Next up</div>
+              <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
+                <li>Add your service catalog</li>
+                <li>Import your client list</li>
+                <li>Set up staff accounts and schedules</li>
+                <li>Configure product inventory</li>
+              </ul>
             </div>
-            <div className="text-xs capitalize text-sidebar-foreground/60">{role}</div>
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent"
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-x-hidden">
-        <header className="border-b border-border bg-background/80 px-6 py-4 backdrop-blur md:px-10">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            Welcome back{tenant.data?.fullName ? `, ${tenant.data.fullName.split(" ")[0]}` : ""}
-          </h1>
-          <p className="text-sm text-muted-foreground">Here's your salon at a glance.</p>
-        </header>
-
-        <div className="p-6 md:p-10">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { label: "Today's appointments", value: "—", icon: CalendarClock },
-              { label: "Revenue today", value: "QAR 0", icon: TrendingUp },
-              { label: "Active clients", value: "—", icon: Users },
-              { label: "Low stock items", value: "—", icon: Package },
-            ].map((k) => (
-              <Card key={k.label}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {k.label}
-                  </CardTitle>
-                  <k.icon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="font-display text-3xl font-semibold">{k.value}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="font-display text-xl">You're all set up</CardTitle>
-              <CardDescription>
-                Your brand and first location are live. Feature modules — appointments, clients, stock, services, staff and reports — will appear here as we build them out for your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg bg-secondary p-4 text-sm text-secondary-foreground">
-                <div className="font-medium">Next up</div>
-                <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
-                  <li>Add your service catalog</li>
-                  <li>Import your client list</li>
-                  <li>Set up staff accounts and schedules</li>
-                  <li>Configure product inventory</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
