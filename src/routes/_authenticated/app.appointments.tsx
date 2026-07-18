@@ -220,15 +220,21 @@ function CalendarView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_roles")
-        .select("user_id, role, location_id, profiles:profiles!user_roles_user_id_fkey(full_name, email)")
+        .select("user_id, role, location_id")
         .eq("brand_id", brandId)
         .not("user_id", "is", null);
       if (error) throw error;
-      const rows = (data ?? []).filter((r: any) => r.role === "owner" || r.location_id === effectiveLocId);
-      return rows.map((r: any) => ({
-        user_id: r.user_id,
-        full_name: r.profiles?.full_name ?? null,
-        email: r.profiles?.email ?? null,
+      const rows = (data ?? []).filter((r) => r.role === "owner" || r.location_id === effectiveLocId);
+      const ids = rows.map((r) => r.user_id).filter(Boolean) as string[];
+      let profilesById: Record<string, { full_name: string | null; email: string | null }> = {};
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
+        for (const p of profs ?? []) profilesById[p.id] = { full_name: p.full_name, email: p.email };
+      }
+      return rows.map((r) => ({
+        user_id: r.user_id!,
+        full_name: profilesById[r.user_id!]?.full_name ?? null,
+        email: profilesById[r.user_id!]?.email ?? null,
         role: r.role,
         location_id: r.location_id,
       })) as StaffOpt[];
