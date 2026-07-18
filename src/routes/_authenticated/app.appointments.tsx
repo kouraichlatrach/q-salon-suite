@@ -739,7 +739,7 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
       const { error: srErr } = await supabase.from("service_records").insert({
         appointment_id: appt.id,
         technician_user_id: appt.staff_user_id,
-        service_performed: servicePerformed.trim() || null,
+        service_performed: servicePerformed.trim() || "—",
         formula_notes: formulaNotes.trim() || null,
       });
       if (srErr && !srErr.message.toLowerCase().includes("duplicate")) throw srErr;
