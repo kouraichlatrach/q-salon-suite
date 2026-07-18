@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, MailPlus } from "lucide-react";
+import { Plus, Trash2, MailPlus, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -329,16 +329,25 @@ function StaffContent() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {canRemove(row) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setConfirmRemove(row)}
-                        aria-label="Remove"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {row.user_id && (
+                        <Button variant="ghost" size="icon" asChild aria-label="Schedule">
+                          <Link to="/app/staff/$id/schedule" params={{ id: row.user_id }}>
+                            <CalendarClock className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
+                      {canRemove(row) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setConfirmRemove(row)}
+                          aria-label="Remove"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
