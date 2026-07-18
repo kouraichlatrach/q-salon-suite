@@ -57,13 +57,21 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        toast.success("Account created", {
-          description: "You're signed in. Let's set up your salon.",
-        });
+        // Attach any pending invite matching this email to the new account.
+        const { data: claimed } = await supabase.rpc("claim_pending_invite");
+        if (Array.isArray(claimed) && claimed.length > 0) {
+          toast.success("Welcome!", { description: "You've been added to your team." });
+        } else {
+          toast.success("Account created", {
+            description: "You're signed in. Let's set up your salon.",
+          });
+        }
         navigate({ to: "/app" });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Also claim on sign-in in case invite was created after they signed up.
+        await supabase.rpc("claim_pending_invite");
         navigate({ to: redirect ?? "/app" });
       }
     } catch (err) {

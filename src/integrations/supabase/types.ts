@@ -732,25 +732,28 @@ export type Database = {
           brand_id: string
           created_at: string
           id: string
+          invited_email: string | null
           location_id: string | null
           role: Database["public"]["Enums"]["app_role"]
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           brand_id: string
           created_at?: string
           id?: string
+          invited_email?: string | null
           location_id?: string | null
           role: Database["public"]["Enums"]["app_role"]
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           brand_id?: string
           created_at?: string
           id?: string
+          invited_email?: string | null
           location_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -777,6 +780,24 @@ export type Database = {
       can_manage_location: {
         Args: { _location_id: string; _user_id: string }
         Returns: boolean
+      }
+      claim_pending_invite: {
+        Args: never
+        Returns: {
+          brand_id: string
+          created_at: string
+          id: string
+          invited_email: string | null
+          location_id: string | null
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "user_roles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_user_brand: { Args: { _user_id: string }; Returns: string }
       has_location_access: {
