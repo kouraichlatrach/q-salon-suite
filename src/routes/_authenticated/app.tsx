@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/error-message";
 import { useTenant } from "@/hooks/use-tenant";
 import { PLAN_LIMITS, PLAN_FEATURES, type PlanTier } from "@/lib/plan-limits";
 import { AppShell } from "@/components/app-shell";
