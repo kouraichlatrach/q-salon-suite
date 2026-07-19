@@ -802,6 +802,18 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      create_brand_with_owner_location: {
+        Args: {
+          _brand_name: string
+          _location_address: string
+          _location_name: string
+          _location_phone: string
+          _max_locations: number
+          _max_staff_accounts: number
+          _plan: Database["public"]["Enums"]["subscription_plan"]
+        }
+        Returns: string
+      }
       email_has_other_brand_account: {
         Args: { _brand: string; _email: string }
         Returns: boolean
