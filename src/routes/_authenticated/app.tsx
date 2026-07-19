@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,23 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  CalendarClock,
-  Users,
-  Package,
-  TrendingUp,
-  Check,
-  Sparkles,
-} from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
     meta: [{ title: "Dashboard — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
-  component: AppPage,
+  component: AppLayout,
 });
 
-function AppPage() {
+function AppLayout() {
   const tenant = useTenant();
 
   if (tenant.isLoading) {
@@ -42,21 +35,20 @@ function AppPage() {
 
   if (!tenant.data) return null;
 
-  // Platform admins without a brand get the admin CTA via AppShell,
-  // not the salon-owner onboarding wizard.
+  // Platform admins without a brand: AppShell handles the admin CTA.
+  // Applies to every nested /app/* route — an unonboarded admin shouldn't
+  // reach /app/appointments either.
   if (!tenant.data.brandId && tenant.data.isPlatformAdmin) {
     return <AppShell>{null}</AppShell>;
   }
 
+  // Salon owner without a brand yet: run the onboarding wizard on every
+  // /app/* path until setup completes.
   if (!tenant.data.brandId) {
     return <Onboarding />;
   }
 
-  return (
-    <AppShell>
-      <Dashboard />
-    </AppShell>
-  );
+  return <Outlet />;
 }
 
 // ============================================================
@@ -264,69 +256,5 @@ function Onboarding() {
         )}
       </div>
     </div>
-  );
-}
-
-// ============================================================
-// DASHBOARD
-// ============================================================
-
-function Dashboard() {
-  const tenant = useTenant();
-
-  return (
-    <>
-      <header className="border-b border-border bg-background/80 px-6 py-4 backdrop-blur md:px-10">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">
-          Welcome back
-          {tenant.data?.fullName ? `, ${tenant.data.fullName.split(" ")[0]}` : ""}
-        </h1>
-        <p className="text-sm text-muted-foreground">Here's your salon at a glance.</p>
-      </header>
-
-      <div className="p-6 md:p-10">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Today's appointments", value: "—", icon: CalendarClock },
-            { label: "Revenue today", value: "QAR 0", icon: TrendingUp },
-            { label: "Active clients", value: "—", icon: Users },
-            { label: "Low stock items", value: "—", icon: Package },
-          ].map((k) => (
-            <Card key={k.label}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {k.label}
-                </CardTitle>
-                <k.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="font-display text-3xl font-semibold">{k.value}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="font-display text-xl">You're all set up</CardTitle>
-            <CardDescription>
-              Your brand and first location are live. Feature modules will appear here as we
-              build them out for your account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg bg-secondary p-4 text-sm text-secondary-foreground">
-              <div className="font-medium">Next up</div>
-              <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
-                <li>Add your service catalog</li>
-                <li>Import your client list</li>
-                <li>Set up staff accounts and schedules</li>
-                <li>Configure product inventory</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </>
   );
 }
