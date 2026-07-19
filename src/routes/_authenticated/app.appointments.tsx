@@ -583,7 +583,7 @@ function AppointmentDialog({
       onOpenChange(false);
     },
     onError: (e) => {
-      const msg = errorMessage(e, "Failed");
+      const msg = errorMessage(e, "Failed") ?? "Failed";
       if (msg.toLowerCase().includes("overlap")) toast.error("Double-booked", { description: "This staff member already has an appointment in that time window." });
       else toast.error(msg);
     },
