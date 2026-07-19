@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -229,7 +230,7 @@ function StaffContent() {
     },
     onError: (err) => {
       toast.error("Could not remove", {
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: errorMessage(err, "Please try again."),
       });
     },
   });
@@ -493,7 +494,7 @@ function InviteDialog({
       setEmail("");
     } catch (err) {
       toast.error("Could not invite", {
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: errorMessage(err, "Please try again."),
       });
     } finally {
       setSubmitting(false);

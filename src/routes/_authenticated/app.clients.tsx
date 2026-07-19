@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -305,7 +306,7 @@ function ClientsPage() {
                       },
                       onError: (e) =>
                         toast.error("Delete failed", {
-                          description: e instanceof Error ? e.message : undefined,
+                          description: errorMessage(e),
                         }),
                     });
                   }
@@ -373,7 +374,7 @@ export function ClientFormDialog({
     },
     onError: (e) =>
       toast.error("Save failed", {
-        description: e instanceof Error ? e.message : undefined,
+        description: errorMessage(e),
       }),
   });
 

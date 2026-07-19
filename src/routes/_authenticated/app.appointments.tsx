@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -582,7 +583,7 @@ function AppointmentDialog({
       onOpenChange(false);
     },
     onError: (e) => {
-      const msg = e instanceof Error ? e.message : "Failed";
+      const msg = errorMessage(e, "Failed");
       if (msg.toLowerCase().includes("overlap")) toast.error("Double-booked", { description: "This staff member already has an appointment in that time window." });
       else toast.error(msg);
     },
@@ -700,7 +701,7 @@ function StatusMenu({ appt }: { appt: Appointment }) {
       qc.invalidateQueries({ queryKey: ["appts"] });
       qc.invalidateQueries({ queryKey: ["my-appts"] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(errorMessage(e, "Failed")),
   });
 
   function waLink() {
@@ -770,7 +771,7 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
       qc.invalidateQueries({ queryKey: ["my-appts"] });
       onOpenChange(false);
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(errorMessage(e, "Failed")),
   });
 
   return (

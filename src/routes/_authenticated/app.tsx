@@ -3,6 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/error-message";
 import { useTenant } from "@/hooks/use-tenant";
 import { PLAN_LIMITS, PLAN_FEATURES, type PlanTier } from "@/lib/plan-limits";
 import { AppShell } from "@/components/app-shell";
@@ -78,45 +79,23 @@ function Onboarding() {
     setLoading(true);
     try {
       const limits = PLAN_LIMITS[plan];
-      const { data: brand, error: brandErr } = await supabase
-        .from("brands")
-        .insert({
-          owner_user_id: tenant.data.userId,
-          name: brandName.trim(),
-          plan,
-          subscription_status: "trial",
-          billing_cycle: "monthly",
-          max_locations: limits.locations,
-          max_staff_accounts: limits.staff,
-        })
-        .select("id")
-        .single();
-      if (brandErr) throw brandErr;
-
-      const { error: locErr } = await supabase
-        .from("locations")
-        .insert({
-          brand_id: brand.id,
-          name: locName.trim(),
-          address: locAddress.trim() || null,
-          phone: locPhone.trim() || null,
-        });
-      if (locErr) throw locErr;
-
-      const { error: roleErr } = await supabase.from("user_roles").insert({
-        user_id: tenant.data.userId,
-        role: "owner",
-        brand_id: brand.id,
-        location_id: null,
+      const { error: rpcErr } = await supabase.rpc("create_brand_with_owner_location", {
+        _brand_name: brandName.trim(),
+        _plan: plan,
+        _max_locations: limits.locations,
+        _max_staff_accounts: limits.staff,
+        _location_name: locName.trim(),
+        _location_address: locAddress.trim(),
+        _location_phone: locPhone.trim(),
       });
-      if (roleErr) throw roleErr;
+      if (rpcErr) throw rpcErr;
 
       toast.success("Welcome to Q-Salon!", { description: `${brandName} is set up.` });
       await tenant.refetch();
       navigate({ to: "/app" });
     } catch (err) {
       toast.error("Setup failed", {
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: errorMessage(err, "Please try again."),
       });
     } finally {
       setLoading(false);

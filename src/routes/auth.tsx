@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -76,7 +77,7 @@ function AuthPage() {
       }
     } catch (err) {
       toast.error(mode === "signup" ? "Could not create account" : "Sign in failed", {
-        description: err instanceof Error ? err.message : "Please try again.",
+        description: errorMessage(err, "Please try again."),
       });
     } finally {
       setLoading(false);
