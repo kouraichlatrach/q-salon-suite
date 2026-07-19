@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -160,7 +161,7 @@ function WeeklyHours({ userId, locationId, readOnly }: { userId: string; locatio
       qc.invalidateQueries({ queryKey: ["sched", userId, locationId] });
       toast.success("Schedule saved");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(errorMessage(e, "Failed")),
   });
 
   return (
@@ -244,7 +245,7 @@ function LeaveSection({ userId, locationId, readOnly }: { userId: string; locati
       setStart(""); setEnd(""); setReason("");
       toast.success("Leave added");
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(errorMessage(e, "Failed")),
   });
 
   const remove = useMutation({
@@ -253,7 +254,7 @@ function LeaveSection({ userId, locationId, readOnly }: { userId: string; locati
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leave", userId] }),
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+    onError: (e) => toast.error(errorMessage(e, "Failed")),
   });
 
   return (

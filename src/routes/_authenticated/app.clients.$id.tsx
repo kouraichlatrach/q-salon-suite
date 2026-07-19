@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/error-message";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -87,7 +88,7 @@ function ClientDetailPage() {
     },
     onError: (e) =>
       toast.error("Save failed", {
-        description: e instanceof Error ? e.message : undefined,
+        description: errorMessage(e),
       }),
   });
 
