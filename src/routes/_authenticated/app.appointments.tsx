@@ -695,7 +695,7 @@ function AppointmentDialog({
 // STATUS MENU + COMPLETION
 // ============================================================
 
-function StatusMenu({ appt }: { appt: Appointment }) {
+function StatusMenu({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
   const qc = useQueryClient();
   const [completeOpen, setCompleteOpen] = useState(false);
 
@@ -722,7 +722,14 @@ function StatusMenu({ appt }: { appt: Appointment }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={compact ? "h-5 w-5 bg-background/70 hover:bg-background" : ""}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className={compact ? "h-3 w-3" : "h-4 w-4"} />
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
           <DropdownMenuItem onClick={() => setCompleteOpen(true)}>Mark completed</DropdownMenuItem>
@@ -738,6 +745,9 @@ function StatusMenu({ appt }: { appt: Appointment }) {
   );
 }
 
+type ProductRow = { id: string; name: string; unit: string };
+type ProductUseRow = { product_id: string; quantity: string };
+
 function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient();
   const tenant = useTenant();
@@ -745,20 +755,76 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
   const [formulaNotes, setFormulaNotes] = useState("");
   const [amount, setAmount] = useState<string>(appt.price != null ? String(appt.price) : "");
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
+  const [productRows, setProductRows] = useState<ProductUseRow[]>([]);
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products-active", appt.brand_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, unit")
+        .eq("brand_id", appt.brand_id)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as ProductRow[];
+    },
+  });
+
+  function updateRow(i: number, patch: Partial<ProductUseRow>) {
+    setProductRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+  function addRow() {
+    setProductRows((rows) => [...rows, { product_id: "", quantity: "1" }]);
+  }
+  function removeRow(i: number) {
+    setProductRows((rows) => rows.filter((_, idx) => idx !== i));
+  }
 
   const submit = useMutation({
     mutationFn: async () => {
       const amt = parseFloat(amount);
       if (isNaN(amt) || amt < 0) throw new Error("Enter a valid amount");
-      // service_record
-      const { error: srErr } = await supabase.from("service_records").insert({
+
+      // Validate product rows
+      const validRows: { product_id: string; quantity: number }[] = [];
+      for (const r of productRows) {
+        if (!r.product_id) continue;
+        const q = parseFloat(r.quantity);
+        if (isNaN(q) || q <= 0) throw new Error("Each product row needs a quantity greater than 0");
+        validRows.push({ product_id: r.product_id, quantity: q });
+      }
+
+      // Upsert service_record (unique on appointment_id) and get id
+      let serviceRecordId: string | null = null;
+      const { data: srIns, error: srErr } = await supabase.from("service_records").insert({
         appointment_id: appt.id,
         technician_user_id: appt.staff_user_id,
         service_performed: servicePerformed.trim() || "—",
         formula_notes: formulaNotes.trim() || null,
-      });
-      if (srErr && !srErr.message.toLowerCase().includes("duplicate")) throw srErr;
-      // income
+      }).select("id").single();
+      if (srErr) {
+        if (!srErr.message.toLowerCase().includes("duplicate")) throw srErr;
+        const { data: existing, error: exErr } = await supabase
+          .from("service_records")
+          .select("id")
+          .eq("appointment_id", appt.id)
+          .maybeSingle();
+        if (exErr) throw exErr;
+        serviceRecordId = existing?.id ?? null;
+      } else {
+        serviceRecordId = srIns.id;
+      }
+
+      // Insert product usage rows (fires auto_deduct_stock_on_service_use)
+      if (validRows.length > 0 && serviceRecordId) {
+        const { error: prErr } = await supabase.from("service_record_products").insert(
+          validRows.map((r) => ({ service_record_id: serviceRecordId!, product_id: r.product_id, quantity: r.quantity })),
+        );
+        if (prErr) throw prErr;
+      }
+
+      // Income
       const { error: incErr } = await supabase.from("income_records").insert({
         appointment_id: appt.id,
         location_id: appt.location_id,
@@ -769,7 +835,8 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
         collected_by: tenant.data?.userId ?? null,
       });
       if (incErr) throw incErr;
-      // status
+
+      // Status
       const { error: sErr } = await supabase.from("appointments").update({ status: "completed", price: amt }).eq("id", appt.id);
       if (sErr) throw sErr;
     },
@@ -777,6 +844,8 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
       toast.success("Appointment completed");
       qc.invalidateQueries({ queryKey: ["appts"] });
       qc.invalidateQueries({ queryKey: ["my-appts"] });
+      qc.invalidateQueries({ queryKey: ["location-stock"] });
+      qc.invalidateQueries({ queryKey: ["stock-movements"] });
       onOpenChange(false);
     },
     onError: (e) => toast.error(errorMessage(e, "Failed")),
@@ -784,20 +853,54 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Complete appointment</DialogTitle>
-          <DialogDescription>Log what was done and payment collected.</DialogDescription>
+          <DialogDescription>Log what was done, products used, and payment collected.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
           <div className="space-y-1.5">
             <Label>Service performed / notes (optional)</Label>
             <Input dir="auto" value={servicePerformed} onChange={(e) => setServicePerformed(e.target.value)} placeholder="e.g. Balayage, root touch-up" />
           </div>
           <div className="space-y-1.5">
-            <Label>Formula / product notes (optional)</Label>
-            <Textarea dir="auto" value={formulaNotes} onChange={(e) => setFormulaNotes(e.target.value)} rows={2} placeholder="Formula details, products used…" />
+            <Label>Formula / technician notes (optional)</Label>
+            <Textarea dir="auto" value={formulaNotes} onChange={(e) => setFormulaNotes(e.target.value)} rows={2} placeholder="Formula details, mix ratios…" />
           </div>
+
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Products used (optional)</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addRow}>
+                <Plus className="mr-1 h-3 w-3" /> Add product
+              </Button>
+            </div>
+            {productRows.length === 0 && (
+              <p className="text-xs text-muted-foreground">No products logged. Add rows for any stock items consumed.</p>
+            )}
+            {productRows.map((row, i) => {
+              const prod = products.find((p) => p.id === row.product_id);
+              return (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Product</Label>
+                    <Select value={row.product_id} onValueChange={(v) => updateRow(i, { product_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>
+                        {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-28 space-y-1">
+                    <Label className="text-xs">Qty {prod ? `(${prod.unit})` : ""}</Label>
+                    <Input type="number" step="0.01" min="0" value={row.quantity} onChange={(e) => updateRow(i, { quantity: e.target.value })} />
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(i)}>Remove</Button>
+                </div>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Amount ({appt.currency})</Label>
@@ -826,3 +929,4 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
     </Dialog>
   );
 }
+
