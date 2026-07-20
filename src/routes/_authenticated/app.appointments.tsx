@@ -385,14 +385,21 @@ function DayGrid({
               const top = (minsFromTop / SLOT_MIN) * rowH;
               const height = (dur / SLOT_MIN) * rowH - 2;
               return (
-                <button
+                <div
                   key={a.id}
-                  onClick={() => onApptClick(a)}
-                  className={`absolute left-1 right-1 overflow-hidden rounded-md border p-1.5 text-left text-xs shadow-sm ${statusColor(a.status)}`}
+                  className={`absolute left-1 right-1 rounded-md border shadow-sm ${statusColor(a.status)}`}
                   style={{ top, height }}
                 >
-                  <ApptCardMini appt={a} />
-                </button>
+                  <button
+                    onClick={() => onApptClick(a)}
+                    className="block h-full w-full overflow-hidden p-1.5 pr-6 text-left text-xs"
+                  >
+                    <ApptCardMini appt={a} />
+                  </button>
+                  <div className="absolute right-0.5 top-0.5">
+                    <StatusMenu appt={a} compact />
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -401,6 +408,7 @@ function DayGrid({
     </div>
   );
 }
+
 
 function ApptCardMini({ appt }: { appt: Appointment }) {
   const { data: client } = useQuery({
