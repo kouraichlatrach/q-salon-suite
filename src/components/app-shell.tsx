@@ -28,10 +28,10 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Services", to: "/app/services", icon: Sparkles },
     { label: "Stock", to: "/app/stock", icon: Package },
-    { label: "Locations", to: "/app", icon: MapPin },
+    { label: "Locations", to: "/app/locations", icon: MapPin },
     { label: "Staff", to: "/app/staff", icon: Users },
     { label: "Reports", to: "/app/reports", icon: TrendingUp },
-    { label: "Settings", to: "/app", icon: Settings },
+    { label: "Settings", to: "/app/settings", icon: Settings },
   ],
   manager: [
     { label: "Overview", to: "/app", icon: TrendingUp },
