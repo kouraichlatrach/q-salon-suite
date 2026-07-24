@@ -51,6 +51,7 @@
 
   --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-handwritten: "Caveat", "Segoe Script", cursive;
 
   --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.03);
   --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.06);
