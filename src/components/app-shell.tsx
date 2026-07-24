@@ -18,6 +18,7 @@ import { useTenant, type AppRole } from "@/hooks/use-tenant";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Logo } from "@/components/logo";
 
 type NavItem = { label: string; to: string; icon: typeof CalendarClock };
 
@@ -89,12 +90,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <Link to="/app" className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-            Q
-          </div>
-          <span className="font-display text-base font-semibold text-sidebar-foreground">
-            Q-Salon
+        <Link to="/app" className="mb-8 flex items-center gap-2.5 px-2">
+          <Logo size={32} className="rounded-md bg-white p-0.5 shadow-sm" />
+          <span className="font-display text-base font-semibold tracking-tight text-sidebar-foreground">
+            Q-Salon Suite
           </span>
         </Link>
         <nav className="flex-1 space-y-1">
@@ -149,11 +148,9 @@ function NoBrandLanding({
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <Link to="/app" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-            Q
-          </div>
-          <span className="font-display text-base font-semibold">Q-Salon Suite</span>
+        <Link to="/app" className="flex items-center gap-2.5">
+          <Logo size={32} />
+          <span className="font-display text-base font-semibold tracking-tight">Q-Salon Suite</span>
         </Link>
         <div className="flex items-center gap-3 text-sm">
           <span className="hidden text-muted-foreground sm:inline">
