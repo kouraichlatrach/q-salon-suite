@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Logo } from "@/components/logo";
 import { toast } from "sonner";
 
 const searchSchema = z.object({
@@ -88,11 +89,9 @@ function AuthPage() {
     <div className="grid min-h-screen md:grid-cols-2">
       {/* Left panel */}
       <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground md:flex">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-foreground font-display font-semibold">
-            Q
-          </div>
-          <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
+        <Link to="/" className="flex items-center gap-2.5">
+          <Logo size={36} className="rounded-md bg-white p-0.5" />
+          <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>
         </Link>
         <div>
           <h2 className="max-w-md font-display text-4xl font-semibold leading-tight tracking-tight">
@@ -109,11 +108,9 @@ function AuthPage() {
       <div className="flex flex-col justify-center px-6 py-10 sm:px-12">
         <div className="mx-auto w-full max-w-sm">
           <div className="md:hidden">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-                Q
-              </div>
-              <span className="font-display text-lg font-semibold">Q-Salon Suite</span>
+            <Link to="/" className="flex items-center gap-2.5">
+              <Logo size={32} />
+              <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>
             </Link>
           </div>
           <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight md:mt-0">

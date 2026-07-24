@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 import { CalendarClock, Users, Package, TrendingUp, MapPin, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -12,10 +13,8 @@ function Landing() {
       {/* Nav */}
       <header className="border-b border-border/60 bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
-              Q
-            </div>
+          <Link to="/" className="flex items-center gap-2.5">
+            <Logo size={36} />
             <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>
           </Link>
           <nav className="flex items-center gap-2">
