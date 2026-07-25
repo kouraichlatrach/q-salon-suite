@@ -63,7 +63,7 @@ function Nav() {
           <Link
             to="/auth"
             search={{ mode: "signup" }}
-            className="inline-flex h-10 items-center justify-center rounded-none bg-primary px-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-[--color-rose-gold-deep]"
+            className="inline-flex h-10 items-center justify-center rounded-none bg-primary px-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-rose-gold-deep"
           >
             Request Access
           </Link>
@@ -118,7 +118,7 @@ function Hero() {
           />
           <button
             type="submit"
-            className="inline-flex h-12 items-center justify-center gap-2 bg-primary px-7 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-all hover:bg-[--color-rose-gold-deep] hover:shadow-lg"
+            className="inline-flex h-12 items-center justify-center gap-2 bg-primary px-7 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-all hover:bg-rose-gold-deep hover:shadow-lg"
           >
             Request Access
             <ArrowRight className="h-4 w-4" />
@@ -141,7 +141,7 @@ function BentoGrid() {
       <div className="mx-auto max-w-6xl">
         <div className="grid auto-rows-[200px] grid-cols-1 gap-4 md:grid-cols-12">
           {/* Scheduling — hero tile */}
-          <div className="flex flex-col justify-between border border-[--color-steel] bg-[--color-sand-deep] p-8 md:col-span-8 md:row-span-2">
+          <div className="flex flex-col justify-between border border-steel bg-sand-deep p-8 md:col-span-8 md:row-span-2">
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
                 <Calendar className="h-3.5 w-3.5" />
@@ -166,7 +166,7 @@ function BentoGrid() {
           </div>
 
           {/* Client CRM */}
-          <div className="flex flex-col justify-center border border-charcoal bg-[--color-charcoal] p-8 text-white md:col-span-4 md:row-span-1">
+          <div className="flex flex-col justify-center border border-charcoal bg-charcoal p-8 text-white md:col-span-4 md:row-span-1">
             <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
               <Users className="h-3.5 w-3.5" />
               Clients
@@ -213,7 +213,7 @@ function BentoGrid() {
           </div>
 
           {/* Marketing */}
-          <div className="flex items-center border border-[--color-steel] bg-[--color-sand-deep] p-8 md:col-span-4 md:row-span-1">
+          <div className="flex items-center border border-steel bg-sand-deep p-8 md:col-span-4 md:row-span-1">
             <div>
               <div className="mb-2 flex items-center gap-2 text-primary">
                 <MessageSquare className="h-4 w-4" />
@@ -228,7 +228,7 @@ function BentoGrid() {
           </div>
 
           {/* Inventory */}
-          <div className="flex items-center justify-between border border-[--color-steel] bg-card p-8 md:col-span-4 md:row-span-1">
+          <div className="flex items-center justify-between border border-steel bg-card p-8 md:col-span-4 md:row-span-1">
             <div className="flex items-center gap-3">
               <Package className="h-5 w-5 text-primary" />
               <h3 className="font-display text-xl font-medium text-foreground">
@@ -336,8 +336,8 @@ function Pricing() {
               key={t.name}
               className={`flex flex-col border p-8 ${
                 t.featured
-                  ? "border-primary bg-[--color-charcoal] text-white"
-                  : "border-[--color-steel] bg-card"
+                  ? "border-primary bg-charcoal text-white"
+                  : "border-steel bg-card"
               }`}
             >
               <div
@@ -385,7 +385,7 @@ function Pricing() {
                 search={{ mode: "signup" }}
                 className={`mt-8 inline-flex h-11 items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] transition-colors ${
                   t.featured
-                    ? "bg-primary text-primary-foreground hover:bg-[--color-rose-gold-deep]"
+                    ? "bg-primary text-primary-foreground hover:bg-rose-gold-deep"
                     : "border border-foreground text-foreground hover:bg-foreground hover:text-background"
                 }`}
               >
@@ -403,7 +403,7 @@ function Pricing() {
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-border/60 bg-[--color-sand-deep]">
+    <footer className="border-t border-border/60 bg-sand-deep">
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center md:px-8">
         <div className="flex items-center gap-2.5">
           <Logo size={28} />
