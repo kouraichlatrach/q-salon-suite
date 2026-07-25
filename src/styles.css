@@ -90,11 +90,11 @@
   --secondary: oklch(0.94 0.012 75);
   --secondary-foreground: oklch(0.29 0.006 260);
 
-  --muted: oklch(0.965 0.003 240);
-  --muted-foreground: oklch(0.5 0.006 260);
+  --muted: oklch(0.955 0.008 75);
+  --muted-foreground: oklch(0.5 0.008 60);
 
   /* Accent shares the rose-gold identity */
-  --accent: oklch(0.68 0.075 45);
+  --accent: oklch(0.68 0.075 55);
   --accent-foreground: oklch(1 0 0);
 
   --destructive: oklch(0.58 0.2 25);
@@ -104,12 +104,12 @@
   --success-foreground: oklch(1 0 0);
 
   --warning: oklch(0.78 0.13 75);
-  --warning-foreground: oklch(0.27 0.007 260);
+  --warning-foreground: oklch(0.29 0.006 260);
 
-  /* Steel #E6E8E9 borders & dividers */
-  --border: oklch(0.92 0.002 240);
-  --input: oklch(0.92 0.002 240);
-  --ring: oklch(0.68 0.075 45);
+  /* Sand border */
+  --border: oklch(0.9 0.012 75);
+  --input: oklch(0.9 0.012 75);
+  --ring: oklch(0.68 0.075 55);
 
   /* Sidebar: deep charcoal for calm data-heavy nav */
   --sidebar: oklch(0.27 0.007 260);
