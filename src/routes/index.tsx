@@ -1,8 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
-import { ArrowRight, ShieldCheck, Bell, Smile, X, Play, Video, MessageCircle } from "lucide-react";
+import {
+  ArrowRight,
+  Calendar,
+  Users,
+  TrendingUp,
+  MessageSquare,
+  Package,
+  Check,
+  Sparkles,
+} from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -13,286 +21,400 @@ function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       <Nav />
       <Hero />
-      <FeatureCards />
-      <footer className="border-t border-border">
-        <div className="mx-auto max-w-6xl px-6 py-8 text-sm text-muted-foreground md:px-12">
-          © {new Date().getFullYear()} Q-Salon Suite. Made for Qatar.
-        </div>
-      </footer>
+      <BentoGrid />
+      <Pricing />
+      <SiteFooter />
     </div>
   );
 }
 
+/* ---------------------------------- Nav ---------------------------------- */
+
 function Nav() {
   return (
-    <header className="h-20 w-full bg-background">
-      <div className="mx-auto flex h-full max-w-[1280px] items-center justify-between px-6 md:px-12">
-        <Link to="/" className="flex items-center gap-2">
-          <Logo size={36} />
-          <span className="font-display text-2xl font-bold tracking-tight">Q-Salon Suite</span>
+    <header className="w-full">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 md:px-8">
+        <Link to="/" className="flex items-center gap-2.5">
+          <Logo size={34} />
+          <span className="font-display text-2xl font-medium tracking-tight text-foreground">
+            Q-Salon <span className="italic text-primary">Suite</span>
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex">
-          {["How it works", "Features", "Pricing", "Docs"].map((l) => (
+          {["Features", "Pricing", "About"].map((l) => (
             <a
               key={l}
-              href="#"
-              className="text-base font-medium text-muted-foreground transition-colors hover:text-foreground"
+              href={`#${l.toLowerCase()}`}
+              className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
             >
               {l}
             </a>
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <Link to="/auth">
-            <button className="hidden px-4 py-2 text-base font-medium text-muted-foreground transition-colors hover:text-foreground sm:block">
-              Sign in
-            </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/auth"
+            className="hidden px-4 py-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:inline-block"
+          >
+            Sign in
           </Link>
-          <Link to="/auth" search={{ mode: "signup" }}>
-            <button className="inline-flex h-11 items-center justify-center rounded-full bg-foreground px-6 text-base font-medium text-background transition-opacity hover:opacity-90">
-              Sign up
-            </button>
+          <Link
+            to="/auth"
+            search={{ mode: "signup" }}
+            className="inline-flex h-10 items-center justify-center rounded-none bg-primary px-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-[--color-rose-gold-deep]"
+          >
+            Request Access
           </Link>
         </div>
       </div>
+      <div className="mx-auto h-px max-w-6xl bg-border/60" />
     </header>
   );
 }
 
+/* --------------------------------- Hero ---------------------------------- */
+
 function Hero() {
   const [email, setEmail] = useState("");
   return (
-    <section className="relative px-6 pb-16 pt-16 md:px-12 md:pt-20">
-      <div className="mx-auto max-w-[1000px] text-center">
-        <h1 className="mx-auto max-w-[900px] font-display text-5xl font-semibold leading-[1.05] tracking-[-0.02em] text-foreground md:text-[72px]">
-          Run every branch of your salon
-          <span className="text-accent"> with one calm workspace.</span>
+    <section className="px-6 pt-20 pb-16 md:px-8 md:pt-28 md:pb-20">
+      <div className="mx-auto max-w-3xl space-y-7 text-center">
+        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+          <Sparkles className="h-3.5 w-3.5" />
+          The New Standard in Qatar Luxury
+        </span>
+
+        <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-foreground md:text-[76px]">
+          Elevate your salon's
+          <br />
+          <span className="italic text-primary">digital presence.</span>
         </h1>
+
+        <p className="mx-auto max-w-xl text-lg leading-relaxed text-foreground/70">
+          A bespoke CRM suite designed for the prestigious beauty houses of Qatar.
+          Elegance meets operational excellence — across every branch, every chair,
+          every guest.
+        </p>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            window.location.href = `/auth?mode=signup${email ? `&email=${encodeURIComponent(email)}` : ""}`;
+            window.location.href = `/auth?mode=signup${
+              email ? `&email=${encodeURIComponent(email)}` : ""
+            }`;
           }}
-          className="mx-auto mt-10 flex max-w-md flex-col items-stretch justify-center gap-3 sm:max-w-none sm:flex-row sm:items-center"
+          className="mx-auto flex max-w-md flex-col items-stretch gap-3 pt-4 sm:max-w-lg sm:flex-row"
         >
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your work email"
-            className="h-[52px] w-full rounded-lg border border-border bg-card px-4 text-base text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none sm:w-[280px]"
+            placeholder="your@salon.qa"
+            dir="auto"
+            className="h-12 flex-1 border border-border bg-card px-4 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none"
           />
           <button
             type="submit"
-            className="inline-flex h-[52px] items-center justify-center gap-2 rounded-lg bg-foreground px-6 text-base font-medium text-background transition-opacity hover:opacity-90"
+            className="inline-flex h-12 items-center justify-center gap-2 bg-primary px-7 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-all hover:bg-[--color-rose-gold-deep] hover:shadow-lg"
           >
-            Start free trial
+            Request Access
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>
 
-        <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <ShieldCheck className="h-5 w-5" />
-          Role-based access and RLS security at every layer
-        </div>
-      </div>
-
-      {/* Handwritten decorations — desktop only */}
-      <div
-        className="pointer-events-none absolute hidden lg:block"
-        style={{ left: "8%", top: "58%", transform: "rotate(-6deg)" }}
-      >
-        <span className="font-handwritten text-lg text-muted-foreground/70">Appointment booking</span>
-        <svg width="80" height="40" viewBox="0 0 80 40" className="mt-1 text-muted-foreground/50">
-          <path d="M5 5 Q 40 5 70 35" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-          <path d="M62 30 L 70 35 L 65 28" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        </svg>
-      </div>
-      <div
-        className="pointer-events-none absolute hidden lg:block"
-        style={{ right: "8%", top: "56%", transform: "rotate(5deg)" }}
-      >
-        <span className="font-handwritten text-lg text-muted-foreground/70">Stock & staff</span>
-        <svg width="80" height="40" viewBox="0 0 80 40" className="mt-1 text-muted-foreground/50">
-          <path d="M75 5 Q 40 5 10 35" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-          <path d="M18 30 L 10 35 L 15 28" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        </svg>
+        <p className="text-xs text-foreground/50">
+          Trusted by Doha's premier salons · Arabic &amp; English throughout
+        </p>
       </div>
     </section>
   );
 }
 
-function FeatureCards() {
+/* ------------------------------- Bento Grid ------------------------------ */
+
+function BentoGrid() {
   return (
-    <section className="mx-auto max-w-[1140px] px-6 pb-24 md:px-12">
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr]">
-        {/* Column 1 */}
-        <div className="flex flex-col gap-4">
-          <AppointmentCard />
-          <ShortcutsCard />
+    <section id="features" className="px-6 pb-24 md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="grid auto-rows-[200px] grid-cols-1 gap-4 md:grid-cols-12">
+          {/* Scheduling — hero tile */}
+          <div className="flex flex-col justify-between border border-[--color-steel] bg-[--color-sand-deep] p-8 md:col-span-8 md:row-span-2">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
+                <Calendar className="h-3.5 w-3.5" />
+                Appointments
+              </div>
+              <h3 className="font-display text-4xl font-medium leading-tight text-foreground">
+                Seamless Scheduling
+              </h3>
+              <p className="max-w-sm text-sm leading-relaxed text-foreground/60">
+                Manage high-profile bookings with a fluid, intuitive interface designed
+                for fast-paced luxury environments — with double-booking prevention at
+                the database level.
+              </p>
+            </div>
+
+            {/* Product surface preview */}
+            <div className="mt-8 flex gap-3 overflow-hidden">
+              <CalendarSlot time="10:00" name="Fatima Al-Thani" service="Balayage" tone="active" />
+              <CalendarSlot time="11:30" name="Sarah Jenkins" service="HydraFacial" />
+              <CalendarSlot time="14:00" name="Dana Rashid" service="Silk Press" />
+            </div>
+          </div>
+
+          {/* Client CRM */}
+          <div className="flex flex-col justify-center border border-charcoal bg-[--color-charcoal] p-8 text-white md:col-span-4 md:row-span-1">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
+              <Users className="h-3.5 w-3.5" />
+              Clients
+            </div>
+            <h3 className="mb-2 font-display text-2xl font-medium text-primary">
+              Client Archives
+            </h3>
+            <p className="text-sm text-white/60">
+              Private profiles, visit history, and no-show tracking — brand-wide.
+            </p>
+          </div>
+
+          {/* Revenue */}
+          <div className="flex flex-col justify-between bg-primary p-8 text-white md:col-span-4 md:row-span-2">
+            <div className="flex items-center justify-between">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/30">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/60">
+                Reports
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 font-display text-5xl font-medium leading-none">
+                +28.4%
+              </div>
+              <div className="mb-4 text-xs uppercase tracking-widest text-white/60">
+                Revenue vs Q3
+              </div>
+              <div className="mb-5 flex items-end gap-1.5 h-14">
+                {[35, 55, 45, 70, 60, 85, 100].map((h, i) => (
+                  <div
+                    key={i}
+                    className="w-full rounded-sm bg-white/80"
+                    style={{ height: `${h}%` }}
+                  />
+                ))}
+              </div>
+              <h3 className="font-display text-2xl font-medium">Revenue Insights</h3>
+              <p className="mt-1 text-sm text-white/80">
+                Visualizing growth with artisanal precision.
+              </p>
+            </div>
+          </div>
+
+          {/* Marketing */}
+          <div className="flex items-center border border-[--color-steel] bg-[--color-sand-deep] p-8 md:col-span-4 md:row-span-1">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-primary">
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <h3 className="font-display text-xl font-medium text-foreground">
+                WhatsApp Reminders
+              </h3>
+              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-foreground/50">
+                Bespoke Outreach
+              </p>
+            </div>
+          </div>
+
+          {/* Inventory */}
+          <div className="flex items-center justify-between border border-[--color-steel] bg-card p-8 md:col-span-4 md:row-span-1">
+            <div className="flex items-center gap-3">
+              <Package className="h-5 w-5 text-primary" />
+              <h3 className="font-display text-xl font-medium text-foreground">
+                Inventory Control
+              </h3>
+            </div>
+            <div className="h-0.5 w-12 bg-primary" />
+          </div>
         </div>
-
-        {/* Column 2 */}
-        <ProductivityCard />
-
-        {/* Column 3 */}
-        <IntegrationShowcase />
       </div>
     </section>
   );
 }
 
-function AppointmentCard() {
+function CalendarSlot({
+  time,
+  name,
+  service,
+  tone,
+}: {
+  time: string;
+  name: string;
+  service: string;
+  tone?: "active";
+}) {
+  const active = tone === "active";
   return (
-    <div className="rounded-2xl bg-card p-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
-      <div className="mb-4 flex items-center justify-between">
-        <span className="text-base font-medium text-muted-foreground">Appointment</span>
-        <X className="h-5 w-5 text-muted-foreground" />
+    <div
+      className={`h-32 flex-shrink-0 border p-3 ${
+        active
+          ? "w-52 border-primary/40 bg-primary/10"
+          : "w-48 border-white/40 bg-white/60"
+      }`}
+    >
+      <div
+        className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${
+          active ? "text-primary" : "text-foreground/40"
+        }`}
+      >
+        {time}
       </div>
-      <div className="mb-3 flex items-center gap-2">
-        <div className="grid h-5 w-5 place-items-center rounded-full bg-accent/15">
-          <Video className="h-3 w-3 text-accent" />
+      <div className="font-display text-base leading-tight text-foreground">
+        {name}
+      </div>
+      <div className="mt-1 text-xs text-foreground/60">{service}</div>
+      <div className={`mt-3 h-0.5 w-8 ${active ? "bg-primary" : "bg-foreground/15"}`} />
+    </div>
+  );
+}
+
+/* --------------------------------- Pricing -------------------------------- */
+
+function Pricing() {
+  const tiers = [
+    {
+      name: "Starter",
+      price: "1,200",
+      note: "For a single boutique salon",
+      features: ["1 location", "Up to 5 staff", "Core CRM & bookings", "Email support"],
+    },
+    {
+      name: "Growth",
+      price: "2,800",
+      note: "For growing salon chains",
+      features: [
+        "Up to 3 locations",
+        "Up to 20 staff",
+        "Stock & reports",
+        "WhatsApp reminders",
+        "Priority support",
+      ],
+      featured: true,
+    },
+    {
+      name: "Enterprise",
+      price: "Custom",
+      note: "For established beauty houses",
+      features: [
+        "Unlimited locations",
+        "Unlimited staff",
+        "Custom onboarding",
+        "Dedicated success lead",
+      ],
+    },
+  ];
+
+  return (
+    <section id="pricing" className="border-t border-border/60 px-6 py-24 md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-14 max-w-2xl">
+          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+            Pricing
+          </span>
+          <h2 className="mt-3 font-display text-4xl md:text-5xl">
+            Bespoke plans, transparent value.
+          </h2>
+          <p className="mt-3 text-foreground/60">
+            Priced in QAR per month. Manual, offline invoicing in v1 — no card required.
+          </p>
         </div>
-        <span className="text-sm text-muted-foreground">Al Sadd · Chair 3</span>
-      </div>
-      <div className="font-display text-[28px] font-semibold leading-tight text-foreground">
-        Monday, 8 Mar
-      </div>
-      <div className="mt-1 text-sm text-muted-foreground">10:00 – 11:15 AM</div>
 
-      <div className="my-3 h-px bg-border" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {tiers.map((t) => (
+            <div
+              key={t.name}
+              className={`flex flex-col border p-8 ${
+                t.featured
+                  ? "border-primary bg-[--color-charcoal] text-white"
+                  : "border-[--color-steel] bg-card"
+              }`}
+            >
+              <div
+                className={`text-[10px] font-bold uppercase tracking-[0.22em] ${
+                  t.featured ? "text-primary" : "text-primary"
+                }`}
+              >
+                {t.name}
+              </div>
+              <div className="mt-4 flex items-baseline gap-1">
+                <span className="font-display text-5xl font-medium">
+                  {t.price === "Custom" ? "Custom" : `QAR ${t.price}`}
+                </span>
+                {t.price !== "Custom" && (
+                  <span className={`text-sm ${t.featured ? "text-white/50" : "text-foreground/50"}`}>
+                    /mo
+                  </span>
+                )}
+              </div>
+              <p className={`mt-2 text-sm ${t.featured ? "text-white/60" : "text-foreground/60"}`}>
+                {t.note}
+              </p>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        Booked by:
-        <span className="inline-flex items-center gap-1 font-medium text-foreground">
-          <MessageCircle className="h-4 w-4" />
-          Reception
-        </span>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between">
-        <button className="rounded-lg bg-secondary px-5 py-2.5 text-sm font-medium text-secondary-foreground">
-          Confirm
-        </button>
-        <div className="flex gap-3">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <Smile className="h-5 w-5 text-muted-foreground" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ShortcutsCard() {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-card p-6 shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
-      <div>
-        <div className="font-display text-2xl font-semibold text-foreground">Shortcuts</div>
-        <div className="mt-1 text-sm text-muted-foreground">Jump to what you need</div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Key>⌘</Key>
-        <Key>K</Key>
-        <button className="grid h-12 w-12 place-items-center rounded-lg bg-foreground">
-          <Play className="h-4 w-4 fill-background text-background" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid h-12 w-12 place-items-center rounded-lg border border-border bg-muted text-lg text-foreground">
-      {children}
-    </div>
-  );
-}
-
-function ProductivityCard() {
-  return (
-    <div className="flex min-h-[280px] flex-col justify-between rounded-2xl bg-card p-8 shadow-[0_4px_24px_rgba(0,0,0,0.08)]">
-      <div className="flex items-center gap-2">
-        <span className="font-display text-[96px] font-bold leading-none text-foreground">3X</span>
-        <div className="flex">
-          {[1, 0.6, 0.3].map((op, i) => (
-            <svg key={i} width="24" height="56" viewBox="0 0 24 56" style={{ opacity: op }} className="text-primary">
-              <path
-                d="M6 8 L18 28 L6 48"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <div
+                className={`my-6 h-px ${t.featured ? "bg-white/15" : "bg-border"}`}
               />
-            </svg>
+
+              <ul className="space-y-3">
+                {t.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm">
+                    <Check
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${
+                        t.featured ? "text-primary" : "text-primary"
+                      }`}
+                    />
+                    <span className={t.featured ? "text-white/85" : "text-foreground/80"}>
+                      {f}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                to="/auth"
+                search={{ mode: "signup" }}
+                className={`mt-8 inline-flex h-11 items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] transition-colors ${
+                  t.featured
+                    ? "bg-primary text-primary-foreground hover:bg-[--color-rose-gold-deep]"
+                    : "border border-foreground text-foreground hover:bg-foreground hover:text-background"
+                }`}
+              >
+                Get Started
+              </Link>
+            </div>
           ))}
         </div>
       </div>
-      <p className="mt-6 max-w-[220px] text-base leading-relaxed text-muted-foreground">
-        Triple your front-desk speed with one workspace for every branch.
-      </p>
-    </div>
+    </section>
   );
 }
 
-function IntegrationShowcase() {
+/* --------------------------------- Footer -------------------------------- */
+
+function SiteFooter() {
   return (
-    <div className="relative min-h-[360px] w-full">
-      {/* Mint layer */}
-      <div
-        className="absolute right-2 top-0 w-[200px] rounded-xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
-        style={{ background: "#A7F3D0" }}
-      >
-        <div className="mb-3 text-xs font-semibold text-foreground/70">Today · Al Sadd</div>
-        {[80, 60, 70].map((w, i) => (
-          <div key={i} className="mb-2 h-2 rounded" style={{ width: `${w}%`, background: "rgba(0,0,0,0.12)" }} />
-        ))}
-      </div>
-
-      {/* Yellow layer */}
-      <div
-        className="absolute right-16 top-10 w-[180px] rotate-[3deg] rounded-xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
-        style={{ background: "#FEF3C7" }}
-      >
-        <div className="mb-3 text-xs font-semibold text-foreground/70">Stock alerts</div>
-        {[70, 50, 65].map((w, i) => (
-          <div key={i} className="mb-2 h-2 rounded" style={{ width: `${w}%`, background: "rgba(0,0,0,0.12)" }} />
-        ))}
-      </div>
-
-      {/* Peach layer */}
-      <div
-        className="absolute bottom-4 left-2 w-[170px] -rotate-[5deg] rounded-xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.08)]"
-        style={{ background: "#FED7AA" }}
-      >
-        <div className="mb-3 text-xs font-semibold text-foreground/70">Revenue · This week</div>
-        {[85, 55, 40].map((w, i) => (
-          <div key={i} className="mb-2 h-2 rounded" style={{ width: `${w}%`, background: "rgba(0,0,0,0.15)" }} />
-        ))}
-      </div>
-
-      {/* Foreground Notion-style task card */}
-      <div className="absolute left-16 top-16 z-10 w-[260px] rounded-xl bg-card p-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
-        <div className="mb-3 flex items-center gap-2">
-          <Logo size={20} />
-          <span className="text-sm font-medium text-foreground">Q-Salon</span>
+    <footer className="border-t border-border/60 bg-[--color-sand-deep]">
+      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center md:px-8">
+        <div className="flex items-center gap-2.5">
+          <Logo size={28} />
+          <span className="font-display text-lg font-medium">
+            Q-Salon <span className="italic text-primary">Suite</span>
+          </span>
         </div>
-        <div className="mb-2 text-xs text-muted-foreground">Appointment booked:</div>
-        <div className="mb-4 text-base font-semibold leading-snug text-foreground">
-          Balayage & blow-dry for Fatima A.
-        </div>
-        <div className="text-sm font-medium text-foreground">Tuesday, 14 Mar</div>
-        <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-          9:23 AM
-          <span className="text-border">|</span>
-          Noura + Layla
-        </div>
+        <p className="text-sm text-foreground/60">
+          © {new Date().getFullYear()} Q-Salon Suite · Crafted in Doha · صُنع بعناية
+        </p>
       </div>
-    </div>
+    </footer>
   );
 }
