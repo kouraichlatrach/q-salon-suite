@@ -72,19 +72,23 @@
   --background: oklch(0.977 0.002 240);
   --foreground: oklch(0.27 0.007 260); /* Charcoal #32353A */
 
+  /* Warm Sand app background */
+  --background: oklch(0.977 0.006 75);
+  --foreground: oklch(0.29 0.006 260); /* Charcoal #32353A */
+
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.27 0.007 260);
+  --card-foreground: oklch(0.29 0.006 260);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.27 0.007 260);
+  --popover-foreground: oklch(0.29 0.006 260);
 
-  /* Primary = Rose Gold action color */
-  --primary: oklch(0.68 0.075 45);
+  /* Primary = Rose Gold #C58F66 */
+  --primary: oklch(0.68 0.075 55);
   --primary-foreground: oklch(1 0 0);
 
-  /* Secondary = Steel surface for chips/tabs */
-  --secondary: oklch(0.94 0.003 240);
-  --secondary-foreground: oklch(0.27 0.007 260);
+  /* Secondary = Sand Deep #F0EBE3 */
+  --secondary: oklch(0.94 0.012 75);
+  --secondary-foreground: oklch(0.29 0.006 260);
 
   --muted: oklch(0.965 0.003 240);
   --muted-foreground: oklch(0.5 0.006 260);
