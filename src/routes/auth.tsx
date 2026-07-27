@@ -50,7 +50,7 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -59,6 +59,14 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        if (!data.session) {
+          toast.success("Account created", {
+            description: "Check your email to confirm before signing in.",
+          });
+          setMode("signin");
+          setPassword("");
+          return;
+        }
         // Attach any pending invite matching this email to the new account.
         const { data: claimed } = await supabase.rpc("claim_pending_invite");
         if (Array.isArray(claimed) && claimed.length > 0) {
@@ -70,8 +78,12 @@ function AuthPage() {
         }
         navigate({ to: "/app" });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (!data.session) {
+          toast.message("Please confirm your email before signing in.");
+          return;
+        }
         // Also claim on sign-in in case invite was created after they signed up.
         await supabase.rpc("claim_pending_invite");
         navigate({ to: redirect ?? "/app" });
