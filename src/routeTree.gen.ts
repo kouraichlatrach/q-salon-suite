@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as BookBrandSlugLookupRouteImport } from './routes/book.$brandSlug.lookup'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppStaffRouteImport } from './routes/_authenticated/app.staff'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -67,6 +68,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const BookBrandSlugLookupRoute = BookBrandSlugLookupRouteImport.update({
+  id: '/lookup',
+  path: '/lookup',
+  getParentRoute: () => BookBrandSlugRoute,
 } as any)
 const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
   id: '/stock',
@@ -136,7 +142,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
-  '/book/$brandSlug': typeof BookBrandSlugRoute
+  '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
@@ -154,7 +161,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/book/$brandSlug': typeof BookBrandSlugRoute
+  '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
@@ -176,7 +184,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
-  '/book/$brandSlug': typeof BookBrandSlugRoute
+  '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/_authenticated/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/admin/brands/$id': typeof AuthenticatedAdminBrandsIdRoute
@@ -207,6 +216,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/book/$brandSlug/lookup'
     | '/admin/'
     | '/app/'
     | '/admin/brands/$id'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/book/$brandSlug/lookup'
     | '/admin'
     | '/app'
     | '/admin/brands/$id'
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/settings'
     | '/_authenticated/app/staff'
     | '/_authenticated/app/stock'
+    | '/book/$brandSlug/lookup'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
     | '/_authenticated/admin/brands/$id'
@@ -257,7 +269,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  BookBrandSlugRoute: typeof BookBrandSlugRoute
+  BookBrandSlugRoute: typeof BookBrandSlugRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -317,6 +329,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/book/$brandSlug/lookup': {
+      id: '/book/$brandSlug/lookup'
+      path: '/lookup'
+      fullPath: '/book/$brandSlug/lookup'
+      preLoaderRoute: typeof BookBrandSlugLookupRouteImport
+      parentRoute: typeof BookBrandSlugRoute
     }
     '/_authenticated/app/stock': {
       id: '/_authenticated/app/stock'
@@ -478,11 +497,23 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface BookBrandSlugRouteChildren {
+  BookBrandSlugLookupRoute: typeof BookBrandSlugLookupRoute
+}
+
+const BookBrandSlugRouteChildren: BookBrandSlugRouteChildren = {
+  BookBrandSlugLookupRoute: BookBrandSlugLookupRoute,
+}
+
+const BookBrandSlugRouteWithChildren = BookBrandSlugRoute._addFileChildren(
+  BookBrandSlugRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  BookBrandSlugRoute: BookBrandSlugRoute,
+  BookBrandSlugRoute: BookBrandSlugRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
