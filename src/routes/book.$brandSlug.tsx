@@ -80,7 +80,9 @@ export const Route = createFileRoute("/book/$brandSlug")({
 type Step = "location" | "service" | "staff" | "time" | "verify" | "done";
 
 function BookingPage() {
-  const { brand, locations } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const brand = loaderData.brand as PublicBrand;
+  const locations = loaderData.locations as PublicLocation[];
   const search = Route.useSearch();
   const { brandSlug } = Route.useParams();
 
