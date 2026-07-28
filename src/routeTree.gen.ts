@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BookBrandSlugRouteImport } from './routes/book.$brandSlug'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
@@ -40,6 +41,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookBrandSlugRoute = BookBrandSlugRouteImport.update({
+  id: '/book/$brandSlug',
+  path: '/book/$brandSlug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/book/$brandSlug': typeof BookBrandSlugRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/book/$brandSlug': typeof BookBrandSlugRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/book/$brandSlug': typeof BookBrandSlugRoute
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/_authenticated/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin'
     | '/app'
+    | '/book/$brandSlug'
     | '/app/appointments'
     | '/app/clients'
     | '/app/locations'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/book/$brandSlug'
     | '/app/appointments'
     | '/app/clients'
     | '/app/locations'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admin'
     | '/_authenticated/app'
+    | '/book/$brandSlug'
     | '/_authenticated/app/appointments'
     | '/_authenticated/app/clients'
     | '/_authenticated/app/locations'
@@ -245,6 +257,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  BookBrandSlugRoute: typeof BookBrandSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -268,6 +281,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/book/$brandSlug': {
+      id: '/book/$brandSlug'
+      path: '/book/$brandSlug'
+      fullPath: '/book/$brandSlug'
+      preLoaderRoute: typeof BookBrandSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  BookBrandSlugRoute: BookBrandSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
