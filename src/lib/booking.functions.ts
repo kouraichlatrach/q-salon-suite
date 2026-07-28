@@ -160,9 +160,6 @@ export const requestBookingOtp = createServerFn({ method: "POST" })
     const phone = normalizePhone(data.phone);
     if (!phone) return { ok: false as const, error: "invalid_phone" };
 
-    const brands = await adminRpc<PublicBrand[]>("public_get_brand_by_slug", { _slug: "" });
-    void brands; // slug unused here; brand fetched by id below
-
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: brandRow } = await supabaseAdmin
       .from("brands")
