@@ -14,6 +14,8 @@ import {
   getBookingStaff,
   requestBookingOtp,
   type PublicSlot,
+  type PublicBrand,
+  type PublicLocation,
 } from "@/lib/booking.functions";
 import { BookingShell, StepHeading, Stepper } from "@/components/booking-shell";
 import { SlotPicker } from "@/components/slot-picker";
