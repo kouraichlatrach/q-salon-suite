@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ManageTokenRouteImport } from './routes/manage.$token'
 import { Route as BookBrandSlugRouteImport } from './routes/book.$brandSlug'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -42,6 +43,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManageTokenRoute = ManageTokenRouteImport.update({
+  id: '/manage/$token',
+  path: '/manage/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookBrandSlugRoute = BookBrandSlugRouteImport.update({
@@ -143,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
+  '/manage/$token': typeof ManageTokenRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
+  '/manage/$token': typeof ManageTokenRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
+  '/manage/$token': typeof ManageTokenRoute
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/_authenticated/app/locations': typeof AuthenticatedAppLocationsRoute
@@ -208,6 +217,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/app'
     | '/book/$brandSlug'
+    | '/manage/$token'
     | '/app/appointments'
     | '/app/clients'
     | '/app/locations'
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/book/$brandSlug'
+    | '/manage/$token'
     | '/app/appointments'
     | '/app/clients'
     | '/app/locations'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/book/$brandSlug'
+    | '/manage/$token'
     | '/_authenticated/app/appointments'
     | '/_authenticated/app/clients'
     | '/_authenticated/app/locations'
@@ -270,6 +282,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   BookBrandSlugRoute: typeof BookBrandSlugRouteWithChildren
+  ManageTokenRoute: typeof ManageTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -293,6 +306,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manage/$token': {
+      id: '/manage/$token'
+      path: '/manage/$token'
+      fullPath: '/manage/$token'
+      preLoaderRoute: typeof ManageTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book/$brandSlug': {
@@ -514,6 +534,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   BookBrandSlugRoute: BookBrandSlugRouteWithChildren,
+  ManageTokenRoute: ManageTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
