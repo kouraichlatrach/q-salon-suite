@@ -97,18 +97,92 @@ export type Database = {
           },
         ]
       }
+      booking_otps: {
+        Row: {
+          attempts: number
+          brand_id: string
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+        }
+        Insert: {
+          attempts?: number
+          brand_id: string
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+        }
+        Update: {
+          attempts?: number
+          brand_id?: string
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_otps_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_tokens: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          expires_at: string | null
+          token: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          expires_at?: string | null
+          token: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          expires_at?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_tokens_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           billing_cycle: Database["public"]["Enums"]["billing_cycle"]
           created_at: string
           currency: string
           id: string
+          max_advance_days: number
           max_locations: number
           max_staff_accounts: number
+          min_notice_hours: number
           name: string
           owner_user_id: string
           plan: Database["public"]["Enums"]["subscription_plan"]
           renewal_date: string | null
+          slug: string
+          sms_sender: string | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
         }
@@ -117,12 +191,16 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          max_advance_days?: number
           max_locations?: number
           max_staff_accounts?: number
+          min_notice_hours?: number
           name: string
           owner_user_id: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
           renewal_date?: string | null
+          slug: string
+          sms_sender?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
         }
@@ -131,12 +209,16 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          max_advance_days?: number
           max_locations?: number
           max_staff_accounts?: number
+          min_notice_hours?: number
           name?: string
           owner_user_id?: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
           renewal_date?: string | null
+          slug?: string
+          sms_sender?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
         }
@@ -682,6 +764,45 @@ export type Database = {
           },
         ]
       }
+      staff_services: {
+        Row: {
+          brand_id: string
+          created_at: string
+          id: string
+          service_id: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          id?: string
+          service_id: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          id?: string
+          service_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_services_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           created_at: string
@@ -843,6 +964,138 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      public_book_appointment: {
+        Args: {
+          _brand_id: string
+          _client_name: string
+          _location_id: string
+          _notes: string
+          _phone: string
+          _service_id: string
+          _staff_user_id: string
+          _starts_at: string
+        }
+        Returns: {
+          appointment_id: string
+          error: string
+          token: string
+        }[]
+      }
+      public_cancel_by_token: { Args: { _token: string }; Returns: boolean }
+      public_compute_slots: {
+        Args: {
+          _brand_id: string
+          _date_from: string
+          _date_to: string
+          _location_id: string
+          _service_id: string
+          _staff_user_id: string
+        }
+        Returns: {
+          ends_at: string
+          staff_user_id: string
+          starts_at: string
+        }[]
+      }
+      public_create_otp: {
+        Args: {
+          _brand_id: string
+          _code: string
+          _phone: string
+          _ttl_minutes?: number
+        }
+        Returns: string
+      }
+      public_get_appointment_by_token: {
+        Args: { _token: string }
+        Returns: {
+          appointment_id: string
+          brand_id: string
+          brand_name: string
+          brand_slug: string
+          client_name: string
+          currency: string
+          duration_minutes: number
+          ends_at: string
+          location_address: string
+          location_id: string
+          location_name: string
+          phone: string
+          price: number
+          service_id: string
+          service_name: string
+          staff_name: string
+          staff_user_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["appointment_status"]
+        }[]
+      }
+      public_get_brand_by_slug: {
+        Args: { _slug: string }
+        Returns: {
+          currency: string
+          id: string
+          max_advance_days: number
+          min_notice_hours: number
+          name: string
+          slug: string
+          sms_sender: string
+        }[]
+      }
+      public_list_appointments_by_phone: {
+        Args: { _brand_id: string; _phone: string }
+        Returns: {
+          appointment_id: string
+          ends_at: string
+          location_name: string
+          service_name: string
+          staff_name: string
+          starts_at: string
+          status: Database["public"]["Enums"]["appointment_status"]
+          token: string
+        }[]
+      }
+      public_list_locations: {
+        Args: { _brand_id: string }
+        Returns: {
+          address: string
+          id: string
+          name: string
+          phone: string
+          timezone: string
+        }[]
+      }
+      public_list_services: {
+        Args: { _brand_id: string; _location_id: string }
+        Returns: {
+          category: string
+          currency: string
+          description: string
+          duration_minutes: number
+          id: string
+          name: string
+          price: number
+        }[]
+      }
+      public_list_staff_for_service: {
+        Args: { _brand_id: string; _location_id: string; _service_id: string }
+        Returns: {
+          full_name: string
+          user_id: string
+        }[]
+      }
+      public_reschedule_by_token: {
+        Args: {
+          _new_staff_user_id: string
+          _new_starts_at: string
+          _token: string
+        }
+        Returns: string
+      }
+      public_verify_otp: {
+        Args: { _brand_id: string; _code: string; _phone: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "owner" | "manager" | "receptionist" | "staff"
