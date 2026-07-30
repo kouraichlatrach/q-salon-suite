@@ -56,12 +56,12 @@ export const Route = createFileRoute("/book/$brandSlug")({
       ],
     };
   },
-  errorComponent: () => (
+  errorComponent: ({ error }) => (
     <BookingShell>
       <div className="py-16 text-center">
         <h1 className="font-display text-2xl font-semibold">Something went wrong</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          We couldn't load this salon's booking page. Please try again.
+          {errorMessage(error, "We couldn't load this salon's booking page. Please try again.")}
         </p>
       </div>
     </BookingShell>
