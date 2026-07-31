@@ -1,5 +1,10 @@
 import { errorMessage } from "@/lib/error-message";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useChildMatches,
+} from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, MailPlus, CalendarClock } from "lucide-react";
@@ -52,7 +57,7 @@ export const Route = createFileRoute("/_authenticated/app/staff")({
   head: () => ({
     meta: [{ title: "Staff — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
-  component: StaffPage,
+  component: StaffRoute,
 });
 
 type StaffRow = {
@@ -75,6 +80,13 @@ const ROLE_LABEL: Record<AppRole, string> = {
   receptionist: "Receptionist",
   staff: "Staff",
 };
+
+// This route has a child route (/app/staff/$id/schedule). Render the roster
+// only on the exact index match; otherwise hand off to the child via <Outlet />.
+function StaffRoute() {
+  const childMatches = useChildMatches();
+  return childMatches.length > 0 ? <Outlet /> : <StaffPage />;
+}
 
 function RoleBadge({ role }: { role: AppRole }) {
   const cls =
