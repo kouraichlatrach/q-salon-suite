@@ -1,5 +1,10 @@
 import { errorMessage } from "@/lib/error-message";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useChildMatches,
+} from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -37,7 +42,7 @@ export const Route = createFileRoute("/_authenticated/app/clients")({
   head: () => ({
     meta: [{ title: "Clients — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
-  component: ClientsPage,
+  component: ClientsRoute,
 });
 
 type ClientRow = {
@@ -52,6 +57,13 @@ type ClientRow = {
 };
 
 type SortKey = "name" | "last_visit" | "no_show_count";
+
+// This route has a child route (/app/clients/$id). Render the list only on the
+// exact index match; otherwise hand off to the child via <Outlet />.
+function ClientsRoute() {
+  const childMatches = useChildMatches();
+  return childMatches.length > 0 ? <Outlet /> : <ClientsPage />;
+}
 
 function NoShowBadge({ count }: { count: number }) {
   if (count === 0) {

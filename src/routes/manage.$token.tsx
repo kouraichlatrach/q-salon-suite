@@ -37,7 +37,7 @@ export const Route = createFileRoute("/manage/$token")({
       <div className="py-16 text-center">
         <h1 className="font-display text-2xl font-semibold">Link no longer valid</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This booking link has expired, or the appointment has already passed or been cancelled.
+          We couldn't find this booking. The link may be incorrect, or it may have expired.
         </p>
       </div>
     </BookingShell>
@@ -62,7 +62,14 @@ function ManagePage() {
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
 
+  // Branch on the appointment's real status/time, not token validity. The token
+  // stays readable after cancellation so the client can always see what
+  // happened to their booking.
   const cancelled = appt.status === "cancelled";
+  // `starts_at` (not ends_at) matches public_cancel_by_token's own guard, so the
+  // UI stops offering cancel/reschedule exactly when the RPC would refuse it.
+  const past = !cancelled && parseISO(appt.starts_at).getTime() <= Date.now();
+  const manageable = !cancelled && !past;
 
   async function doCancel() {
     setBusy(true);
@@ -109,7 +116,7 @@ function ManagePage() {
 
   return (
     <BookingShell brandName={appt.brand_name}>
-      {mode === "reschedule" && appt.service_id ? (
+      {mode === "reschedule" && manageable && appt.service_id ? (
         <>
           <StepHeading
             title="Pick a new time"
@@ -131,8 +138,14 @@ function ManagePage() {
       ) : (
         <>
           <StepHeading
-            title={cancelled ? "Booking cancelled" : "Your booking"}
-            subtitle={cancelled ? undefined : "Reschedule or cancel below."}
+            title={
+              cancelled
+                ? "Booking cancelled"
+                : past
+                  ? "Appointment already took place"
+                  : "Your booking"
+            }
+            subtitle={manageable ? "Reschedule or cancel below." : undefined}
           />
 
           <div className="rounded-xl border border-border bg-card p-5">
@@ -166,7 +179,11 @@ function ManagePage() {
 
           {cancelled ? (
             <p className="mt-6 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              This appointment has been cancelled. Contact the salon if you'd like to rebook.
+              This booking was cancelled. Contact the salon if you'd like to rebook.
+            </p>
+          ) : past ? (
+            <p className="mt-6 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              This appointment already took place. Contact the salon to book again.
             </p>
           ) : (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">

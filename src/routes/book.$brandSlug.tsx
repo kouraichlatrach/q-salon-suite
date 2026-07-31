@@ -1,4 +1,10 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  notFound,
+  useChildMatches,
+} from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -76,8 +82,17 @@ export const Route = createFileRoute("/book/$brandSlug")({
       </div>
     </BookingShell>
   ),
-  component: BookingPage,
+  component: BookingRoute,
 });
+
+// This route has child routes (e.g. /book/$brandSlug/lookup). Render the
+// step-flow UI only on the exact index match; otherwise hand off to the child
+// via <Outlet />. Kept as a thin wrapper so BookingPage's hooks are only ever
+// mounted when it actually renders.
+function BookingRoute() {
+  const childMatches = useChildMatches();
+  return childMatches.length > 0 ? <Outlet /> : <BookingPage />;
+}
 
 type Step = "location" | "service" | "staff" | "time" | "verify" | "done";
 
