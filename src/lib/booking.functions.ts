@@ -37,6 +37,14 @@ export type PublicService = {
   duration_minutes: number;
   price: number;
   currency: string;
+  /** Deposit config, so the client sees it before committing — not at checkout. */
+  deposit_required: boolean;
+  deposit_mandatory: boolean;
+  /** When true, only clients with no completed visit pay it — phrase as "may". */
+  deposit_new_clients_only: boolean;
+  deposit_percentage: number | null;
+  /** Server-computed; never re-derive this in the UI. */
+  deposit_amount: number | null;
 };
 
 export type PublicStaff = { user_id: string; full_name: string };
@@ -67,6 +75,11 @@ export type PublicAppointment = {
   status: string;
   price: number | null;
   currency: string;
+  deposit_status: "pending" | "paid" | "refunded" | "forfeited" | "expired" | null;
+  deposit_amount: number | null;
+  deposit_paid_amount: number | null;
+  /** Price minus any deposit still credited to the client. Server-computed. */
+  balance_due: number | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -215,6 +228,8 @@ export const confirmBooking = createServerFn({ method: "POST" })
       phone: string;
       code: string;
       notes?: string | null;
+      depositSkipped?: boolean;
+      brandSlug: string;
     }) =>
       z
         .object({
@@ -230,6 +245,8 @@ export const confirmBooking = createServerFn({ method: "POST" })
           // Client declined an *optional* deposit. Rejected server-side if the
           // service's deposit is mandatory.
           depositSkipped: z.boolean().optional(),
+          // Needed to build the post-payment confirmation URL.
+          brandSlug: z.string().min(1).max(200),
         })
         .parse(d),
   )
@@ -279,13 +296,17 @@ export const confirmBooking = createServerFn({ method: "POST" })
     // Payment is only ever confirmed later, by the signed webhook.
     if (row.deposit_required && row.deposit_amount) {
       const { openDepositCharge } = await import("./payments/deposits.server");
+      // Return to a confirmation page, not the manage page: the client needs to
+      // be told the payment succeeded. That page reads payment state from the
+      // database, so the redirect itself still proves nothing.
+      const confirmUrl = `${origin}/book/${data.brandSlug}/confirmed?token=${encodeURIComponent(token)}`;
       const charge = await openDepositCharge({
         brandId: data.brandId,
         appointmentId: row.appointment_id!,
         amount: Number(row.deposit_amount),
         currency: "QAR",
         description: "Booking deposit",
-        returnUrl: manageUrl,
+        returnUrl: confirmUrl,
         attempt: 1,
       });
 

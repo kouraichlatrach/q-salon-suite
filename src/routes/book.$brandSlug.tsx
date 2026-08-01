@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { format, parseISO } from "date-fns";
-import { Check, Clock, MapPin, Sparkles, User } from "lucide-react";
+import { Check, Clock, MapPin, Sparkles, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -22,6 +22,7 @@ import {
   type PublicSlot,
   type PublicBrand,
   type PublicLocation,
+  type PublicService,
 } from "@/lib/booking.functions";
 import { BookingShell, StepHeading, Stepper } from "@/components/booking-shell";
 import { SlotPicker } from "@/components/slot-picker";
@@ -31,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
+import { formatMoney } from "@/lib/money";
 
 const searchSchema = z.object({
   location: fallback(z.string(), "").default(""),
@@ -145,8 +147,7 @@ function BookingPage() {
     ? { location: 1, service: 1, staff: 2, time: 3, verify: 4, done: 4 }
     : { location: 1, service: 2, staff: 3, time: 4, verify: 5, done: 5 };
 
-  const money = (v: number, ccy: string) =>
-    `${new Intl.NumberFormat("en-QA", { maximumFractionDigits: 0 }).format(v)} ${ccy}`;
+  const money = (v: number, ccy: string) => formatMoney(v, ccy);
 
   return (
     <BookingShell
@@ -252,9 +253,12 @@ function BookingPage() {
                         {s.description}
                       </span>
                     )}
-                    <span className="mt-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5" />
-                      {s.duration_minutes} min
+                    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        {s.duration_minutes} min
+                      </span>
+                      <DepositBadge service={s} money={money} />
                     </span>
                   </span>
                   <span className="shrink-0 whitespace-nowrap font-display text-lg font-semibold text-primary">
@@ -359,6 +363,7 @@ function BookingPage() {
       {/* ---------------- Step 5: verify + confirm ---------------- */}
       {step === "verify" && location && service && slot && (
         <VerifyStep
+          brandSlug={brandSlug}
           brandId={brand!.id}
           locationId={location.id}
           serviceId={service.id}
@@ -368,6 +373,11 @@ function BookingPage() {
             serviceName: service.name,
             locationName: location.name,
             price: money(Number(service.price), service.currency),
+            depositLabel:
+              service.deposit_required && service.deposit_amount
+                ? money(Number(service.deposit_amount), service.currency)
+                : null,
+            depositMayApply: service.deposit_new_clients_only,
           }}
           onBack={() => setStep("time")}
           onSlotTaken={() => {
@@ -442,6 +452,40 @@ function BookingPage() {
   );
 }
 
+/**
+ * Tells the client a deposit applies *before* they invest any effort, rather
+ * than surprising them with a checkout redirect after phone verification.
+ *
+ * Wording is hedged for new-clients-only rules, because whether it applies
+ * depends on the phone number, which isn't known at this step. Better to say
+ * "may be required" than to state something that turns out false either way.
+ */
+function DepositBadge({
+  service,
+  money,
+}: {
+  service: PublicService;
+  money: (v: number, ccy: string) => string;
+}) {
+  if (!service.deposit_required || !service.deposit_amount) return null;
+
+  const amount = money(Number(service.deposit_amount), service.currency);
+  const pct = service.deposit_percentage ? `${Number(service.deposit_percentage)}%` : null;
+
+  const label = service.deposit_new_clients_only
+    ? `${amount} deposit may be required`
+    : service.deposit_mandatory
+      ? `${amount}${pct ? ` (${pct})` : ""} deposit to book`
+      : `${amount} deposit optional`;
+
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/40 px-2 py-0.5 text-xs font-medium text-accent-foreground">
+      <Wallet className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
+}
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
@@ -454,6 +498,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function VerifyStep({
+  brandSlug,
   brandId,
   locationId,
   serviceId,
@@ -464,12 +509,21 @@ function VerifyStep({
   onDone,
   onSlotTaken,
 }: {
+  brandSlug: string;
   brandId: string;
   locationId: string;
   serviceId: string;
   staffUserId: string | null;
   slot: PublicSlot;
-  summary: { serviceName: string; locationName: string; price: string };
+  summary: {
+    serviceName: string;
+    locationName: string;
+    price: string;
+    /** Formatted deposit due now, or null when none applies. */
+    depositLabel: string | null;
+    /** New-clients-only rule: hedge the wording, it may not apply to them. */
+    depositMayApply: boolean;
+  };
   onBack: () => void;
   onDone: (r: { manageUrl: string; smsSent: boolean }) => void;
   onSlotTaken: () => void;
@@ -526,6 +580,7 @@ function VerifyStep({
           phone,
           code: code.trim(),
           notes: notes.trim() || null,
+          brandSlug,
         },
       });
 
@@ -580,6 +635,23 @@ function VerifyStep({
           <Row label="Location" value={summary.locationName} />
           <Row label="Price" value={summary.price} />
         </dl>
+
+        {summary.depositLabel && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg bg-accent/30 px-3 py-2.5">
+            <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-sm">
+              <span className="font-medium">
+                {summary.depositMayApply
+                  ? `${summary.depositLabel} deposit may be required`
+                  : `${summary.depositLabel} deposit due now`}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Paid securely after you verify your number. It counts towards your
+                total — the rest is settled at the salon.
+              </span>
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -659,7 +731,15 @@ function VerifyStep({
           disabled={busy || (!sent && phone.trim().length < 6) || (sent && code.length < 4)}
           onClick={sent ? submit : sendCode}
         >
-          {busy ? "Please wait…" : sent ? "Confirm booking" : "Send verification code"}
+          {/* Label must match what actually happens next: a deposit service
+              takes the client to payment, not to a confirmation. */}
+          {busy
+            ? "Please wait…"
+            : sent
+              ? summary.depositLabel
+                ? `Continue to payment · ${summary.depositLabel}`
+                : "Confirm booking"
+              : "Send verification code"}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
