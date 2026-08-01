@@ -544,6 +544,14 @@ function VerifyStep({
         return;
       }
 
+      // A deposit-bearing service returns a checkout URL and holds the slot as
+      // `pending`. Showing "You're booked" here would be a lie: the hold silently
+      // expires if the client never pays, so they must be sent to checkout.
+      if (res.depositRequired && res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
+
       onDone({ manageUrl: res.manageUrl, smsSent: res.smsSent });
     } catch (err) {
       toast.error("Could not complete booking", {
