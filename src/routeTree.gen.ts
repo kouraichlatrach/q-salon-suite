@@ -27,6 +27,7 @@ import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppStaffRouteImport } from './routes/_authenticated/app.staff'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
+import { Route as BookBrandSlugConfirmedRouteImport } from './routes/book.$brandSlug.confirmed'
 import { Route as BookBrandSlugLookupRouteImport } from './routes/book.$brandSlug.lookup'
 import { Route as AuthenticatedAdminBrandsIdRouteImport } from './routes/_authenticated/admin.brands.$id'
 import { Route as AuthenticatedAppClientsIdRouteImport } from './routes/_authenticated/app.clients.$id'
@@ -125,6 +126,11 @@ const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
   path: '/stock',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const BookBrandSlugConfirmedRoute = BookBrandSlugConfirmedRouteImport.update({
+  id: '/confirmed',
+  path: '/confirmed',
+  getParentRoute: () => BookBrandSlugRoute,
+} as any)
 const BookBrandSlugLookupRoute = BookBrandSlugLookupRouteImport.update({
   id: '/lookup',
   path: '/lookup',
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -186,6 +193,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
+  '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/admin/'
     | '/app/'
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/admin'
     | '/app'
@@ -281,6 +292,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/settings'
     | '/_authenticated/app/staff'
     | '/_authenticated/app/stock'
+    | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
@@ -426,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppStockRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/book/$brandSlug/confirmed': {
+      id: '/book/$brandSlug/confirmed'
+      path: '/confirmed'
+      fullPath: '/book/$brandSlug/confirmed'
+      preLoaderRoute: typeof BookBrandSlugConfirmedRouteImport
+      parentRoute: typeof BookBrandSlugRoute
+    }
     '/book/$brandSlug/lookup': {
       id: '/book/$brandSlug/lookup'
       path: '/lookup'
@@ -538,10 +557,12 @@ const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 interface BookBrandSlugRouteChildren {
+  BookBrandSlugConfirmedRoute: typeof BookBrandSlugConfirmedRoute
   BookBrandSlugLookupRoute: typeof BookBrandSlugLookupRoute
 }
 
 const BookBrandSlugRouteChildren: BookBrandSlugRouteChildren = {
+  BookBrandSlugConfirmedRoute: BookBrandSlugConfirmedRoute,
   BookBrandSlugLookupRoute: BookBrandSlugLookupRoute,
 }
 

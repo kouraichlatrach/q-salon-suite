@@ -14,6 +14,8 @@ import { BookingShell, StepHeading } from "@/components/booking-shell";
 import { SlotPicker } from "@/components/slot-picker";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/error-message";
+import { formatMoney } from "@/lib/money";
+import { PaymentBreakdown } from "@/routes/book.$brandSlug.confirmed";
 
 export const Route = createFileRoute("/manage/$token")({
   loader: async ({ params }) => {
@@ -167,15 +169,29 @@ function ManagePage() {
               <User className="h-4 w-4" />
               <span dir="auto">{appt.staff_name}</span>
             </p>
-            {appt.price != null && (
+            {appt.price != null && appt.deposit_status !== "paid" && (
               <p className="mt-4 font-display text-lg font-semibold text-primary">
-                {new Intl.NumberFormat("en-QA", { maximumFractionDigits: 0 }).format(
-                  Number(appt.price),
-                )}{" "}
-                {appt.currency}
+                {formatMoney(appt.price, appt.currency)}
               </p>
             )}
           </div>
+
+          {/* With a deposit paid, the bare price is misleading — the client has
+              already handed over part of it. Show paid vs. still owed. */}
+          {appt.deposit_status === "paid" && <PaymentBreakdown appt={appt} />}
+
+          {appt.deposit_status === "forfeited" && (
+            <p className="mt-4 rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-muted-foreground">
+              The {formatMoney(appt.deposit_amount, appt.currency)} deposit was not
+              refunded, as this booking was cancelled inside the salon's notice period.
+            </p>
+          )}
+          {appt.deposit_status === "refunded" && (
+            <p className="mt-4 rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-muted-foreground">
+              The {formatMoney(appt.deposit_amount, appt.currency)} deposit has been
+              refunded to your original payment method.
+            </p>
+          )}
 
           {cancelled ? (
             <p className="mt-6 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">

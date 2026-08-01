@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 
-import logoAsset from "@/assets/q-salon-logo.png.asset.json";
+import { Logo } from "@/components/logo";
 
 /**
  * Public storefront chrome for the client-facing booking portal.
@@ -21,7 +21,7 @@ export function BookingShell({
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/60 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-5 py-4">
-          <img src={logoAsset.url} alt="" className="h-9 w-9 rounded-full" />
+          <Logo size={36} className="h-9 w-9 shrink-0 rounded-full" />
           <div className="min-w-0">
             <p className="truncate font-display text-lg font-semibold leading-tight" dir="auto">
               {brandName ?? "Book an appointment"}
