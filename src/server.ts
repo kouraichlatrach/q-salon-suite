@@ -2,6 +2,9 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+// Path constant only — the handler itself is imported lazily so the payments
+// module (and its Node crypto usage) stays out of the normal SSR path.
+import { PAYMENT_WEBHOOK_PATH } from "./lib/payments/webhook-path";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -47,6 +50,15 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // Payment webhooks are handled before the SSR entry: signature
+      // verification needs the raw request body, and this is the only layer
+      // guaranteed not to have parsed it already.
+      const url = new URL(request.url);
+      if (url.pathname === PAYMENT_WEBHOOK_PATH) {
+        const { handlePaymentWebhook } = await import("./lib/payments/webhook.server");
+        return await handlePaymentWebhook(request);
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
