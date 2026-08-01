@@ -227,6 +227,9 @@ export const confirmBooking = createServerFn({ method: "POST" })
           phone: z.string().min(6).max(24),
           code: z.string().trim().min(4).max(8),
           notes: z.string().max(500).nullish(),
+          // Client declined an *optional* deposit. Rejected server-side if the
+          // service's deposit is mandatory.
+          depositSkipped: z.boolean().optional(),
         })
         .parse(d),
   )
@@ -242,7 +245,14 @@ export const confirmBooking = createServerFn({ method: "POST" })
     if (!verified) return { ok: false as const, error: "bad_code" };
 
     const rows = await adminRpc<
-      Array<{ appointment_id: string | null; token: string | null; error: string | null }>
+      Array<{
+        appointment_id: string | null;
+        token: string | null;
+        error: string | null;
+        deposit_required: boolean;
+        deposit_amount: number | null;
+        hold_expires_at: string | null;
+      }>
     >("public_book_appointment", {
       _brand_id: data.brandId,
       _location_id: data.locationId,
@@ -252,6 +262,7 @@ export const confirmBooking = createServerFn({ method: "POST" })
       _client_name: data.name,
       _phone: phone,
       _notes: data.notes ?? null,
+      _deposit_skipped: data.depositSkipped ?? false,
     });
 
     const row = rows?.[0];
@@ -262,6 +273,38 @@ export const confirmBooking = createServerFn({ method: "POST" })
     const token = row.token!;
     const origin = new URL(getRequest().url).origin;
     const manageUrl = buildManageUrl(origin, token);
+
+    // Deposit required: the slot is already held (pending) at the DB level, so
+    // the client can be sent to checkout without risk of losing it mid-payment.
+    // Payment is only ever confirmed later, by the signed webhook.
+    if (row.deposit_required && row.deposit_amount) {
+      const { openDepositCharge } = await import("./payments/deposits.server");
+      const charge = await openDepositCharge({
+        brandId: data.brandId,
+        appointmentId: row.appointment_id!,
+        amount: Number(row.deposit_amount),
+        currency: "QAR",
+        description: "Booking deposit",
+        returnUrl: manageUrl,
+        attempt: 1,
+      });
+
+      if (!charge.ok) {
+        return { ok: false as const, error: "deposit_charge_failed" };
+      }
+
+      return {
+        ok: true as const,
+        appointmentId: row.appointment_id!,
+        token,
+        manageUrl,
+        smsSent: false,
+        depositRequired: true as const,
+        depositAmount: Number(row.deposit_amount),
+        checkoutUrl: charge.checkoutUrl,
+        holdExpiresAt: row.hold_expires_at,
+      };
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: brandRow } = await supabaseAdmin
@@ -285,6 +328,10 @@ export const confirmBooking = createServerFn({ method: "POST" })
       token,
       manageUrl,
       smsSent: sent.delivered,
+      depositRequired: false as const,
+      depositAmount: null,
+      checkoutUrl: null,
+      holdExpiresAt: null,
     };
   });
 
@@ -304,8 +351,30 @@ export const getAppointmentByToken = createServerFn({ method: "GET" })
 export const cancelByToken = createServerFn({ method: "POST" })
   .inputValidator((d: { token: string }) => z.object({ token: z.string().min(8) }).parse(d))
   .handler(async ({ data }) => {
-    const ok = await adminRpc<boolean>("public_cancel_by_token", { _token: data.token });
-    return { ok: Boolean(ok) };
+    const rows = await adminRpc<
+      Array<import("./payments/deposits.server").CancellationOutcome>
+    >("public_cancel_by_token", { _token: data.token });
+    const row = rows?.[0];
+    if (!row?.ok) return { ok: false as const, outcome: row?.outcome ?? "not_cancellable" };
+
+    // Item 6: refunds are automatic on a qualifying cancellation — no approval
+    // step. The DB has already decided whether one is owed.
+    let refunded = false;
+    let refundError: string | undefined;
+    if (row.refund_due) {
+      const { executeRefundIfDue } = await import("./payments/deposits.server");
+      const res = await executeRefundIfDue(row);
+      refunded = res.refunded;
+      refundError = res.error;
+    }
+
+    return {
+      ok: true as const,
+      outcome: row.outcome,
+      refunded,
+      refundAmount: row.refund_amount,
+      refundError,
+    };
   });
 
 export const rescheduleByToken = createServerFn({ method: "POST" })
