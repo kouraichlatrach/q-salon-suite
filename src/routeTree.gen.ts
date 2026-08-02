@@ -23,6 +23,7 @@ import { Route as AuthenticatedAppAppointmentsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAppClientsRouteImport } from './routes/_authenticated/app.clients'
 import { Route as AuthenticatedAppGiftCardsRouteImport } from './routes/_authenticated/app.gift-cards'
 import { Route as AuthenticatedAppLocationsRouteImport } from './routes/_authenticated/app.locations'
+import { Route as AuthenticatedAppPackagesRouteImport } from './routes/_authenticated/app.packages'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenticated/app.services'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -106,6 +107,12 @@ const AuthenticatedAppLocationsRoute =
     path: '/locations',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppPackagesRoute =
+  AuthenticatedAppPackagesRouteImport.update({
+    id: '/packages',
+    path: '/packages',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -174,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/app/locations': typeof AuthenticatedAppLocationsRoute
+  '/app/packages': typeof AuthenticatedAppPackagesRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/services': typeof AuthenticatedAppServicesRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -197,6 +205,7 @@ export interface FileRoutesByTo {
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/app/locations': typeof AuthenticatedAppLocationsRoute
+  '/app/packages': typeof AuthenticatedAppPackagesRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/services': typeof AuthenticatedAppServicesRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -224,6 +233,7 @@ export interface FileRoutesById {
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/_authenticated/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/_authenticated/app/locations': typeof AuthenticatedAppLocationsRoute
+  '/_authenticated/app/packages': typeof AuthenticatedAppPackagesRoute
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/services': typeof AuthenticatedAppServicesRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/app/clients'
     | '/app/gift-cards'
     | '/app/locations'
+    | '/app/packages'
     | '/app/reports'
     | '/app/services'
     | '/app/settings'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/app/clients'
     | '/app/gift-cards'
     | '/app/locations'
+    | '/app/packages'
     | '/app/reports'
     | '/app/services'
     | '/app/settings'
@@ -300,6 +312,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/clients'
     | '/_authenticated/app/gift-cards'
     | '/_authenticated/app/locations'
+    | '/_authenticated/app/packages'
     | '/_authenticated/app/reports'
     | '/_authenticated/app/services'
     | '/_authenticated/app/settings'
@@ -423,6 +436,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLocationsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/packages': {
+      id: '/_authenticated/app/packages'
+      path: '/packages'
+      fullPath: '/app/packages'
+      preLoaderRoute: typeof AuthenticatedAppPackagesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/reports': {
       id: '/_authenticated/app/reports'
       path: '/reports'
@@ -541,6 +561,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppClientsRoute: typeof AuthenticatedAppClientsRouteWithChildren
   AuthenticatedAppGiftCardsRoute: typeof AuthenticatedAppGiftCardsRoute
   AuthenticatedAppLocationsRoute: typeof AuthenticatedAppLocationsRoute
+  AuthenticatedAppPackagesRoute: typeof AuthenticatedAppPackagesRoute
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppServicesRoute: typeof AuthenticatedAppServicesRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -554,6 +575,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppClientsRoute: AuthenticatedAppClientsRouteWithChildren,
   AuthenticatedAppGiftCardsRoute: AuthenticatedAppGiftCardsRoute,
   AuthenticatedAppLocationsRoute: AuthenticatedAppLocationsRoute,
+  AuthenticatedAppPackagesRoute: AuthenticatedAppPackagesRoute,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppServicesRoute: AuthenticatedAppServicesRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
