@@ -66,3 +66,4 @@ supabase/.temp/
 # This repo uses bun (bun.lock). A stray npm lockfile would compete as the
 # source of truth for dependency resolution.
 package-lock.json
+ .claude/settings.local.json
