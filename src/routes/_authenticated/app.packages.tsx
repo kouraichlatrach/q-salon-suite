@@ -201,27 +201,6 @@ function PackagesPage() {
     },
   });
 
-  // Redemption counts decide whether a refund is still allowed. The database
-  // enforces this too — this only keeps the UI from offering an action that
-  // would be refused.
-  const redemptionsQuery = useQuery({
-    enabled: !!brandId,
-    queryKey: ["package-redemptions", brandId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("package_redemptions")
-        .select("client_package_id")
-        .eq("brand_id", brandId!)
-        .limit(2000);
-      if (error) throw error;
-      const counts = new Map<string, number>();
-      for (const r of data ?? []) {
-        counts.set(r.client_package_id, (counts.get(r.client_package_id) ?? 0) + 1);
-      }
-      return counts;
-    },
-  });
-
   const expiredQuery = useQuery({
     enabled: !!brandId,
     queryKey: ["packages-expired", brandId],
@@ -495,7 +474,6 @@ function PackagesPage() {
   const sellable = types.filter((t) => t.status === "active");
   const sold = soldQuery.data ?? [];
   const expired = expiredQuery.data ?? [];
-  const counts = redemptionsQuery.data ?? new Map<string, number>();
 
   const outstanding = sold.filter((p) => effectiveStatus(p) === "active").length;
 
@@ -736,7 +714,6 @@ function PackagesPage() {
                       <tbody>
                         {sold.map((p) => {
                           const st = effectiveStatus(p);
-                          const used = counts.get(p.id) ?? 0;
                           const left = p.client_package_service_balances.reduce(
                             (s, b) => s + b.remaining_count,
                             0,
@@ -745,6 +722,12 @@ function PackagesPage() {
                             (s, b) => s + b.included_count,
                             0,
                           );
+                          // Sessions only ever decrement, so a balance below
+                          // what was bought means something was redeemed. Same
+                          // answer the redemption log gives, from data already
+                          // on the page — the database is the real guard either
+                          // way, this only decides which action to offer.
+                          const used = total - left;
                           return (
                             <tr key={p.id} className="border-b border-border/50 align-top">
                               <td className="py-2 pr-3">{p.clients?.name ?? "—"}</td>

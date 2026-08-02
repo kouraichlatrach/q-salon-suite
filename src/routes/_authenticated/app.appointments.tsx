@@ -1126,7 +1126,6 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
       qc.invalidateQueries({ queryKey: ["gift-cards"] });
       qc.invalidateQueries({ queryKey: ["client-packages"] });
       qc.invalidateQueries({ queryKey: ["pkg-offers"] });
-      qc.invalidateQueries({ queryKey: ["package-redemptions"] });
       qc.invalidateQueries({ queryKey: ["appts"] });
       qc.invalidateQueries({ queryKey: ["my-appts"] });
       qc.invalidateQueries({ queryKey: ["location-stock"] });

@@ -28,6 +28,12 @@ SECRET KEY SB/
 .wrangler/
 .dev.vars
 
+# Vercel. Nitro emits .vercel/output when it detects a Vercel build, and the
+# Vercel CLI additionally writes .vercel/project.json containing the project
+# and org IDs — build output and account identifiers, neither of which belongs
+# in the repo.
+.vercel
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
