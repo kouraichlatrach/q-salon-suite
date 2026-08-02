@@ -54,7 +54,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 | 12 | Payments — Phase C (Subscription Billing) | 📋 Specced, not built. |
 | 13 | **WhatsApp Automation** | 🟡 **Built except the send itself.** Consent capture, opt-out, scheduling, and audit logging are all done and working. The actual outbound message is blocked by the Twilio **trial account** (error 21654 — see Section 10). |
 | 14 | **Packages (client-facing)** | 📋 **Fully specced, not built.** No dependency on Payments Phase B/C — buildable now. See Section 11. |
-| 15 | **Gift Cards** | 📋 **Fully specced, not built.** No dependency on Payments Phase B/C — buildable now. See Section 11. |
+| 15 | **Gift Cards** | ✅ **Shipped.** Sale, code lookup, partial redemption across multiple visits, expiry-as-live-check, and an expired-with-balance Owner report. Revenue recognised once, at sale. Verified by browser walkthrough. See Section 11. |
 | 16 | **Memberships** | 📋 **Fully specced, not built.** Depends on Payments Phase C's recurring-billing mechanics (retry schedule, no-proration model) — do not start until Phase C is built and proven, since Memberships is specced to directly reuse that machinery rather than re-solve it. See Section 11. |
 
 ---
@@ -122,7 +122,7 @@ In priority order:
 1. ~~Self-Booking~~ — ✅ done (Section 5)
 2. **Payments** — Phase A ✅ built against mock provider (Section 9); real Dibsy swap-in pending business registration/sandbox access. Phases B and C specced, not started — do not begin Phase B until Phase A is verified against real Dibsy.
 3. **WhatsApp Automation** — 🟡 built except the send (Section 10); unblocking needs a paid Twilio account, not more code. Note the scheduled-job infrastructure this was supposed to reuse **did not actually exist** — Phase A shipped `expire_stale_deposit_holds()` but nothing ever called it. pg_cron is now installed and both jobs are scheduled, so that dependency is genuinely satisfied for the first time.
-4. **Packages, Gift Cards & Memberships (client-facing)** — ✅ all three fully specced (Section 11), none built yet. Packages and Gift Cards have no dependency on Payments Phase B/C and are buildable immediately. Memberships is specced to directly reuse Phase C's recurring-billing mechanics (retry schedule, no-proration model) and should not be started until Phase C is built and proven — building it against unproven billing infrastructure risks re-solving the same dunning/billing-cycle problems Phase C is meant to solve once.
+4. **Packages, Gift Cards & Memberships (client-facing)** — all three fully specced (Section 11). **Gift Cards ✅ shipped.** Packages has no dependency on Payments Phase B/C and is the next buildable item here. Memberships is specced to directly reuse Phase C's recurring-billing mechanics (retry schedule, no-proration model) and should not be started until Phase C is built and proven — building it against unproven billing infrastructure risks re-solving the same dunning/billing-cycle problems Phase C is meant to solve once.
 
 Lower priority, not yet specced: marketing/email campaigns, payroll & commission tracking, digital consent/intake forms, two-way client texting, native mobile app, deeper BI, inter-location stock transfer, labor-law-aware leave tracking.
 
@@ -259,7 +259,7 @@ Consequence worth knowing: every send currently records a `failed` row in `whats
 
 ---
 
-## 11. Packages, Gift Cards & Memberships — Fully Specced, Not Built
+## 11. Packages, Gift Cards & Memberships — Gift Cards Shipped, Packages & Memberships Specced
 
 Client-facing, purchasable products — distinct from the existing internal `services` catalog (Owner-managed pricing/bundling, not something a client buys as a product in its own right). All three share a purchase-channel sequencing decision, covered once below rather than three times.
 
@@ -279,16 +279,28 @@ Multi-service bundles a client pre-pays for and redeems over future appointments
 
 **New schema needed:** a package-type definition table (brand-scoped, list of included services + counts + price + expiry duration); a client-package-purchase table tracking remaining count per included service, purchase date, computed expiry, and status (active/expired/refunded); linkage from `appointments`/service-completion back to which package redemption (if any) covered that visit.
 
-### Gift Cards
+### Gift Cards — ✅ Shipped
 
 Stored monetary value, purchasable by anyone (often not the eventual redeemer — a gift, by definition), redeemable against anything.
+
+**Built as specced below**, plus the decisions recorded in "As built" at the end of this subsection.
 
 1. **Denominations: both suggested and custom.** Owner sets a few standard suggested amounts (e.g., 100 / 200 / 500 QAR) shown as quick options at time of sale, but any custom amount is always allowed too.
 2. **Expiry: Owner-configurable**, same mechanical pattern as Packages. **Flag for the Owner, not a technical caveat:** gift card expiry is more likely to intersect with local consumer-protection rules than package expiry (a gift card represents money already paid in full, not a discounted bundle) — worth the Owner confirming Qatar's actual rules on this before enabling it in production, since neither this spec process nor the eventual build can verify that on the Owner's behalf.
 3. **Redemption scope: fully unrestricted.** No category restrictions — a gift card applies to any service, any amount, and can even be used toward a Package purchase. (A future "restrict to category X" need is a different feature — a targeted discount/voucher — not something to bolt onto gift cards.)
 4. **Identification: unique code, linked to a client at redemption.** Each gift card gets a unique generated code at time of purchase (deliverable via WhatsApp/email/printed, whatever the salon does), independent of any `clients` record — the buyer doesn't need to specify a recipient at purchase time. At redemption, staff enter the code, and it gets linked to whichever `clients` record actually uses it (creating a new client record if the redeemer isn't already one), the same way any other new-client flow works.
 
-**New schema needed:** a `gift_cards` table (brand-scoped, unique code, original value, remaining balance, expiry, status); redemption events linking a gift card to specific appointments/transactions and the client who redeemed it.
+**Schema, as built:** `gift_cards` (brand-scoped, unique code, `initial_amount`, `remaining_amount`, currency, `expires_at`, status enum, nullable `client_id` linked at first redemption, `sold_by`) and `gift_card_redemptions` (append-only, linking a card to the appointment, client, amount, and redeeming staff member). `income_records` gained a `source` discriminator and a nullable `gift_card_id`.
+
+**As built — decisions worth carrying forward:**
+
+1. **Revenue is recognised once, at the sale — never again at redemption.** This is the single most important decision in the module. A gift card is money that arrives when the card is sold; counting it again when it's spent would double-count every riyal. Redemption therefore writes a `gift_card_redemptions` row and settles the appointment, but deliberately logs **no** `income_records` row of its own. The appointment's own income record reflects what was actually collected by other means that visit, so brand revenue stays a single honest number regardless of how much of a visit a gift card covered.
+2. **Expiry is a live check, never the stored status.** `gift_card_redeem` compares `expires_at` against `now()` at redemption time, `gift_card_lookup` returns a computed `effective_status` alongside the stored one, and the Owner report queries expiry directly. A card can legitimately sit at `status = 'active'` with a past `expires_at` — that is correct, not drift. This follows Section 4 item 8: the expiry predicate is shared between the redeem path and the read path, exactly the situation where a stale constant-folded answer would make both agree on something wrong.
+3. **Partial redemption across multiple visits** works against `remaining_amount`, with the card flipping to `redeemed` only when the balance reaches zero. Verified across two separate visits against one card.
+4. **`gift_card_generate_code` is not granted to `authenticated`** — internal only. Exposing it would let any signed-in user mint codes. The customer-facing RPCs are granted to `authenticated` and rely on their internal `auth.uid()` / `is_brand_member` checks, matching the existing convention.
+5. **The expired-with-balance report excludes Staff/Technician**, consistent with Core Decision #17's narrower visibility for that role.
+
+**Still open:** the Owner-facing consumer-protection question flagged in item 2 above is unchanged by the build — Qatar's actual rules on gift card expiry still need the Owner's confirmation before expiry is enabled in production. The code supports a null expiry (never expires), so shipping without it is a configuration choice, not a code change.
 
 ### Memberships
 
