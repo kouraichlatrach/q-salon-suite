@@ -71,6 +71,20 @@ type Appointment = {
   currency: string;
 };
 
+type GiftCardLookup = {
+  id: string;
+  code: string;
+  initial_amount: number;
+  remaining_amount: number;
+  currency: string;
+  expires_at: string | null;
+  status: string;
+  /** Derived live from expires_at, not the stored status column. */
+  effective_status: string;
+  client_id: string | null;
+  error: string | null;
+};
+
 type StaffOpt = { user_id: string; full_name: string | null; email: string | null; role: string; location_id: string | null };
 type ServiceRow = { id: string; name: string; duration_minutes: number; default_price: number | null; currency: string };
 type ClientRow = { id: string; name: string; phone: string | null };
@@ -788,12 +802,91 @@ type ProductUseRow = { product_id: string; quantity: string };
 
 function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient();
-  const tenant = useTenant();
+  // collected_by is now set server-side from auth.uid() inside appointment_settle,
+  // so the dialog no longer needs tenant context.
   const [servicePerformed, setServicePerformed] = useState("");
   const [formulaNotes, setFormulaNotes] = useState("");
   const [amount, setAmount] = useState<string>(appt.price != null ? String(appt.price) : "");
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
   const [productRows, setProductRows] = useState<ProductUseRow[]>([]);
+
+  // Gift card redemption. The code is only *checked* here; the actual redeem
+  // happens inside appointment_settle so the balance can't be debited for a
+  // checkout that then fails to complete.
+  const [gcCode, setGcCode] = useState("");
+  const [gcInfo, setGcInfo] = useState<GiftCardLookup | null>(null);
+  const [gcError, setGcError] = useState<string | null>(null);
+  const [gcApply, setGcApply] = useState("");
+  const [gcChecking, setGcChecking] = useState(false);
+
+  async function checkGiftCard() {
+    const code = gcCode.trim();
+    if (!code) return;
+    setGcChecking(true);
+    setGcError(null);
+    setGcInfo(null);
+    try {
+      const { data, error } = await supabase.rpc("gift_card_lookup", {
+        _brand_id: appt.brand_id,
+        _code: code,
+      });
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as GiftCardLookup | undefined;
+
+      if (!row || row.error === "not_found") {
+        setGcError("No gift card with that code at this salon. Check the code and try again.");
+        return;
+      }
+      if (row.error) {
+        setGcError(
+          row.error === "forbidden"
+            ? "You don't have permission to use gift cards here."
+            : row.error,
+        );
+        return;
+      }
+      if (row.effective_status === "expired") {
+        setGcError("This gift card has expired and can't be redeemed.");
+        setGcInfo(row);
+        return;
+      }
+      if (row.effective_status === "redeemed" || Number(row.remaining_amount) <= 0) {
+        setGcError("This gift card has no balance left.");
+        setGcInfo(row);
+        return;
+      }
+      if (row.effective_status === "refunded") {
+        setGcError("This gift card was refunded and can't be redeemed.");
+        setGcInfo(row);
+        return;
+      }
+
+      setGcInfo(row);
+      // Default to whichever is smaller: what's owed, or what's on the card.
+      const due = parseFloat(amount);
+      const bal = Number(row.remaining_amount);
+      setGcApply(String(Number.isFinite(due) && due > 0 ? Math.min(due, bal) : bal));
+    } catch (e) {
+      setGcError(errorMessage(e, "Could not check that code.") ?? "Could not check that code.");
+    } finally {
+      setGcChecking(false);
+    }
+  }
+
+  function clearGiftCard() {
+    setGcCode("");
+    setGcInfo(null);
+    setGcError(null);
+    setGcApply("");
+  }
+
+  const giftUsable = !!gcInfo && !gcError;
+  const applyNum = parseFloat(gcApply);
+  const dueNum = parseFloat(amount);
+  const remainderDue =
+    giftUsable && Number.isFinite(applyNum) && Number.isFinite(dueNum)
+      ? Math.max(dueNum - applyNum, 0)
+      : dueNum;
 
   const { data: products = [] } = useQuery({
     queryKey: ["products-active", appt.brand_id],
@@ -862,24 +955,45 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
         if (prErr) throw prErr;
       }
 
-      // Income
-      const { error: incErr } = await supabase.from("income_records").insert({
-        appointment_id: appt.id,
-        location_id: appt.location_id,
-        brand_id: appt.brand_id,
-        amount: amt,
-        currency: appt.currency,
-        method,
-        collected_by: tenant.data?.userId ?? null,
+      // Money: gift card redemption, income, and status change happen together
+      // inside one transaction. Doing them as separate client-side writes could
+      // debit a customer's gift card for a checkout that then failed to finish.
+      const useGift = giftUsable && Number.isFinite(applyNum) && applyNum > 0;
+      const { data: settled, error: settleErr } = await supabase.rpc("appointment_settle", {
+        _appointment_id: appt.id,
+        _amount: amt,
+        _method: method,
+        _gift_card_code: useGift ? gcCode.trim() : undefined,
+        _gift_card_amount: useGift ? applyNum : undefined,
       });
-      if (incErr) throw incErr;
+      if (settleErr) throw settleErr;
 
-      // Status
-      const { error: sErr } = await supabase.from("appointments").update({ status: "completed", price: amt }).eq("id", appt.id);
-      if (sErr) throw sErr;
+      const row = Array.isArray(settled) ? settled[0] : settled;
+      if (!row || row.error) {
+        // Report the real reason rather than a generic failure.
+        const map: Record<string, string> = {
+          expired: "That gift card has expired and can't be redeemed.",
+          not_found: "No gift card with that code at this salon.",
+          no_balance: "That gift card has no balance left.",
+          refunded: "That gift card was refunded and can't be redeemed.",
+          forbidden: "You don't have permission to complete this appointment.",
+          invalid_amount: "Enter a valid amount.",
+          unknown_appointment: "This appointment no longer exists.",
+        };
+        throw new Error(map[row?.error ?? ""] ?? row?.error ?? "Could not complete the appointment.");
+      }
+      return row as { gift_applied: number | null; gift_remaining: number | null; cash_amount: number | null };
     },
-    onSuccess: () => {
-      toast.success("Appointment completed");
+    onSuccess: (res) => {
+      const applied = Number(res?.gift_applied ?? 0);
+      if (applied > 0) {
+        toast.success("Appointment completed", {
+          description: `Gift card covered ${applied.toFixed(2)} ${appt.currency}. Remaining on card: ${Number(res?.gift_remaining ?? 0).toFixed(2)} ${appt.currency}.`,
+        });
+      } else {
+        toast.success("Appointment completed");
+      }
+      qc.invalidateQueries({ queryKey: ["gift-cards"] });
       qc.invalidateQueries({ queryKey: ["appts"] });
       qc.invalidateQueries({ queryKey: ["my-appts"] });
       qc.invalidateQueries({ queryKey: ["location-stock"] });
@@ -955,6 +1069,82 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Gift card. Partial redemption is the normal case, so this shows
+              what the card covers and what is still owed by other means. */}
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <Label className="text-sm">Gift card (optional)</Label>
+            {!gcInfo ? (
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="gc-redeem-code" className="text-xs">Code</Label>
+                  <Input
+                    id="gc-redeem-code"
+                    value={gcCode}
+                    onChange={(e) => setGcCode(e.target.value)}
+                    placeholder="XXXX-XXXX"
+                    className="font-mono uppercase"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        checkGiftCard();
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={checkGiftCard}
+                  disabled={gcChecking || !gcCode.trim()}
+                >
+                  {gcChecking ? "Checking…" : "Check"}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <code className="font-mono text-sm">{gcInfo.code}</code>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearGiftCard}>
+                    Remove
+                  </Button>
+                </div>
+                {!gcError && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Balance {Number(gcInfo.remaining_amount).toFixed(2)} {gcInfo.currency}
+                      {gcInfo.expires_at
+                        ? ` · expires ${format(parseISO(gcInfo.expires_at), "d MMM yyyy")}`
+                        : " · no expiry"}
+                    </p>
+                    <div className="space-y-1">
+                      <Label htmlFor="gc-apply" className="text-xs">
+                        Apply from card ({appt.currency})
+                      </Label>
+                      <Input
+                        id="gc-apply"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={gcApply}
+                        onChange={(e) => setGcApply(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Still to pay by {method.replace("_", " ")}:{" "}
+                      <span className="font-medium text-foreground">
+                        {Number.isFinite(remainderDue) ? remainderDue.toFixed(2) : "—"}{" "}
+                        {appt.currency}
+                      </span>
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            {gcError && (
+              <p className="text-xs text-amber-700">{gcError}</p>
+            )}
           </div>
         </div>
         <DialogFooter>

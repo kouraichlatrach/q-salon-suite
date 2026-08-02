@@ -68,7 +68,7 @@ function SettingsContent() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brands")
-        .select("id, name, plan, subscription_status, renewal_date, billing_cycle, min_notice_hours, max_advance_days, deposit_hold_minutes, refund_cutoff_hours, reminder_lead_hours, whatsapp_enabled")
+        .select("id, name, plan, subscription_status, renewal_date, billing_cycle, min_notice_hours, max_advance_days, deposit_hold_minutes, refund_cutoff_hours, reminder_lead_hours, whatsapp_enabled, currency, gift_card_denominations, gift_card_expiry_enabled, gift_card_expiry_months")
         .eq("id", brandId)
         .single();
       if (error) throw error;
@@ -90,6 +90,14 @@ function SettingsContent() {
   const [waEnabled, setWaEnabled] = useState(true);
   const [savingOps, setSavingOps] = useState(false);
 
+  // Gift cards. Denominations are edited as a comma-separated list — it's a
+  // short list of round numbers, and a repeater UI would be more chrome than
+  // the data deserves.
+  const [gcDenoms, setGcDenoms] = useState("100, 200, 500");
+  const [gcExpiryEnabled, setGcExpiryEnabled] = useState(false);
+  const [gcExpiryMonths, setGcExpiryMonths] = useState("12");
+  const [savingGc, setSavingGc] = useState(false);
+
   useEffect(() => {
     if (!brand) return;
     setName(brand.name);
@@ -99,7 +107,47 @@ function SettingsContent() {
     setRefundCutoff(String(brand.refund_cutoff_hours ?? 24));
     setReminderLead(String(brand.reminder_lead_hours ?? 24));
     setWaEnabled(brand.whatsapp_enabled ?? true);
+    setGcDenoms((brand.gift_card_denominations ?? [100, 200, 500]).map(Number).join(", "));
+    setGcExpiryEnabled(brand.gift_card_expiry_enabled ?? false);
+    setGcExpiryMonths(String(brand.gift_card_expiry_months ?? 12));
   }, [brand]);
+
+  async function saveGiftCards() {
+    const denoms = gcDenoms
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map(Number);
+
+    if (denoms.some((n) => !Number.isFinite(n) || n <= 0)) {
+      toast.error("Suggested amounts must be a comma-separated list of positive numbers.");
+      return;
+    }
+    const months = Number(gcExpiryMonths);
+    if (gcExpiryEnabled && (!Number.isInteger(months) || months < 1 || months > 120)) {
+      toast.error("Expiry must be a whole number of months between 1 and 120.");
+      return;
+    }
+
+    setSavingGc(true);
+    try {
+      const { error } = await supabase
+        .from("brands")
+        .update({
+          gift_card_denominations: denoms,
+          gift_card_expiry_enabled: gcExpiryEnabled,
+          gift_card_expiry_months: gcExpiryEnabled ? months : Number(brand?.gift_card_expiry_months ?? 12),
+        })
+        .eq("id", brandId);
+      if (error) throw error;
+      toast.success("Gift card settings saved");
+      queryClient.invalidateQueries({ queryKey: ["brand-settings", brandId] });
+    } catch (err) {
+      toast.error("Could not save", { description: errorMessage(err, "Please try again.") });
+    } finally {
+      setSavingGc(false);
+    }
+  }
 
   async function saveOps() {
     // Mirror the database CHECK constraints so a bad value is rejected here
@@ -267,6 +315,79 @@ function SettingsContent() {
           <div className="flex justify-end">
             <Button onClick={saveOps} disabled={savingOps || isLoading}>
               {savingOps ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="font-display">Gift cards</CardTitle>
+          <CardDescription>
+            Suggested amounts shown when selling, and whether gift cards expire.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : (
+            <>
+              <div>
+                <Label htmlFor="set-gc-denoms">Suggested amounts</Label>
+                <Input
+                  id="set-gc-denoms"
+                  value={gcDenoms}
+                  onChange={(e) => setGcDenoms(e.target.value)}
+                  placeholder="100, 200, 500"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Comma-separated. These are quick-pick shortcuts only — staff can
+                  always sell a custom amount.
+                </p>
+              </div>
+
+              <label
+                htmlFor="set-gc-expiry"
+                className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3"
+              >
+                <Checkbox
+                  id="set-gc-expiry"
+                  checked={gcExpiryEnabled}
+                  onCheckedChange={(v) => setGcExpiryEnabled(v === true)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  <span className="font-medium">Gift cards expire</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Off by default. A gift card is money already paid in full, so
+                    expiring one is more likely to run into consumer-protection
+                    rules than a discounted package is — worth confirming what
+                    Qatar allows before turning this on.
+                  </span>
+                </span>
+              </label>
+
+              {gcExpiryEnabled && (
+                <div>
+                  <Label htmlFor="set-gc-months">Expires after (months)</Label>
+                  <Input
+                    id="set-gc-months"
+                    type="number"
+                    inputMode="numeric"
+                    value={gcExpiryMonths}
+                    onChange={(e) => setGcExpiryMonths(e.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Applied when a card is sold. Changing this never affects cards
+                    already sold — they keep the expiry they were given.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={saveGiftCards} disabled={savingGc || isLoading}>
+              {savingGc ? "Saving…" : "Save"}
             </Button>
           </div>
         </CardContent>
