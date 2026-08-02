@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Mail, Phone, Pencil, Save, X } from "lucide-react";
+import { ArrowLeft, Mail, MessageCircle, Phone, Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/app/clients/$id")({
@@ -42,13 +43,35 @@ function ClientDetailPage() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
 
+  const consentMut = useMutation({
+    mutationFn: async (optIn: boolean) => {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          whatsapp_opt_in: optIn,
+          // Keep both timestamps: an opt-out must not erase the record of when
+          // consent was originally given, which is the compliance evidence.
+          ...(optIn ? { whatsapp_opt_in_at: now } : { whatsapp_opt_out_at: now }),
+          whatsapp_consent_source: "staff_manual",
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, optIn) => {
+      toast.success(optIn ? "WhatsApp updates enabled" : "WhatsApp updates stopped");
+      queryClient.invalidateQueries({ queryKey: ["client", id] });
+    },
+    onError: (e) => toast.error(errorMessage(e, "Could not update") ?? "Could not update"),
+  });
+
   const clientQuery = useQuery({
     enabled: !!id,
     queryKey: ["client", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, brand_id, name, phone, email, notes, no_show_count, created_at")
+        .select("id, brand_id, name, phone, email, notes, no_show_count, created_at, whatsapp_opt_in, whatsapp_opt_in_at, whatsapp_opt_out_at")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
@@ -180,6 +203,58 @@ function ClientDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Staff-facing consent control. Section 10 item 3: STOP handles the
+            client who texts in, but the common real-world case is someone
+            asking in person or by phone — that has to be recordable here. */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-lg flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" /> WhatsApp updates
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="text-sm">
+                <p className="font-medium">
+                  {client.whatsapp_opt_in ? "Opted in" : "Not opted in"}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {client.whatsapp_opt_in
+                    ? "Receives booking confirmations and reminders for every booking with this salon."
+                    : "Receives no automated WhatsApp messages."}
+                </p>
+                {/* Both timestamps are kept on purpose — an opt-out must not
+                    erase when consent was originally given, which is the
+                    evidence if the sender is ever reported to Meta. */}
+                {client.whatsapp_opt_in_at && (
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Opted in {format(parseISO(client.whatsapp_opt_in_at), "d MMM yyyy, HH:mm")}
+                  </p>
+                )}
+                {client.whatsapp_opt_out_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Opted out {format(parseISO(client.whatsapp_opt_out_at), "d MMM yyyy, HH:mm")}
+                  </p>
+                )}
+                {!client.phone && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    No phone number on record — nothing can be sent regardless.
+                  </p>
+                )}
+              </div>
+
+              {canWrite && (
+                <Switch
+                  aria-label="WhatsApp updates"
+                  checked={!!client.whatsapp_opt_in}
+                  disabled={consentMut.isPending}
+                  onCheckedChange={(v) => consentMut.mutate(v)}
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-3">
           <Card className="md:col-span-1">

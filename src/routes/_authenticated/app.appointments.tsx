@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -477,6 +478,9 @@ function AppointmentDialog({
   const [timeStr, setTimeStr] = useState(format(initDate, "HH:mm"));
   const [notes, setNotes] = useState(edit?.notes ?? "");
   const [newClientMode, setNewClientMode] = useState(false);
+  // Unchecked by default: consent must be affirmative, same rule as the public
+  // flow. Staff tick it only when the client has actually agreed.
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
   const [warning, setWarning] = useState<string | null>(null);
@@ -584,6 +588,21 @@ function AppointmentDialog({
         const { error } = await supabase.from("appointments").insert(payload);
         if (error) throw error;
       }
+
+      // Only ever grants. An unticked box must not revoke a standing preference
+      // the client set previously — revoking is the staff toggle or STOP.
+      if (whatsappOptIn) {
+        const { error: consentErr } = await supabase
+          .from("clients")
+          .update({
+            whatsapp_opt_in: true,
+            whatsapp_opt_in_at: new Date().toISOString(),
+            whatsapp_consent_source: "staff_booking",
+          })
+          .eq("id", cid);
+        // Consent failing must not fail the booking itself.
+        if (consentErr) console.error("[whatsapp] consent write failed", consentErr);
+      }
     },
     onSuccess: () => {
       toast.success(edit ? "Appointment updated" : "Appointment booked");
@@ -672,6 +691,25 @@ function AppointmentDialog({
             <Label>Notes (optional)</Label>
             <Textarea dir="auto" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
+
+          <label
+            htmlFor="appt-wa-optin"
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3"
+          >
+            <Checkbox
+              id="appt-wa-optin"
+              checked={whatsappOptIn}
+              onCheckedChange={(v) => setWhatsappOptIn(v === true)}
+              className="mt-0.5"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Client agreed to WhatsApp updates</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Only tick if the client has actually agreed. Saves as a standing
+                preference for this client across all their bookings.
+              </span>
+            </span>
+          </label>
 
           {warning && (
             <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">

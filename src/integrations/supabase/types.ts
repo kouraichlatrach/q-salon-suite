@@ -12,8 +12,54 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
+      app_job_config: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           brand_id: string
@@ -21,11 +67,17 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string
+          deposit_amount: number | null
+          deposit_hold_expires_at: string | null
+          deposit_paid_amount: number | null
+          deposit_skipped: boolean
+          deposit_status: Database["public"]["Enums"]["deposit_status"] | null
           ends_at: string
           id: string
           location_id: string
           notes: string | null
           price: number | null
+          reminded_at: string | null
           service_id: string | null
           staff_user_id: string
           starts_at: string
@@ -38,11 +90,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string
+          deposit_amount?: number | null
+          deposit_hold_expires_at?: string | null
+          deposit_paid_amount?: number | null
+          deposit_skipped?: boolean
+          deposit_status?: Database["public"]["Enums"]["deposit_status"] | null
           ends_at: string
           id?: string
           location_id: string
           notes?: string | null
           price?: number | null
+          reminded_at?: string | null
           service_id?: string | null
           staff_user_id: string
           starts_at: string
@@ -55,11 +113,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string
+          deposit_amount?: number | null
+          deposit_hold_expires_at?: string | null
+          deposit_paid_amount?: number | null
+          deposit_skipped?: boolean
+          deposit_status?: Database["public"]["Enums"]["deposit_status"] | null
           ends_at?: string
           id?: string
           location_id?: string
           notes?: string | null
           price?: number | null
+          reminded_at?: string | null
           service_id?: string | null
           staff_user_id?: string
           starts_at?: string
@@ -172,6 +236,7 @@ export type Database = {
           billing_cycle: Database["public"]["Enums"]["billing_cycle"]
           created_at: string
           currency: string
+          deposit_hold_minutes: number
           id: string
           max_advance_days: number
           max_locations: number
@@ -180,16 +245,20 @@ export type Database = {
           name: string
           owner_user_id: string
           plan: Database["public"]["Enums"]["subscription_plan"]
+          refund_cutoff_hours: number
+          reminder_lead_hours: number
           renewal_date: string | null
           slug: string
           sms_sender: string | null
           subscription_status: Database["public"]["Enums"]["subscription_status"]
           updated_at: string
+          whatsapp_enabled: boolean
         }
         Insert: {
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           created_at?: string
           currency?: string
+          deposit_hold_minutes?: number
           id?: string
           max_advance_days?: number
           max_locations?: number
@@ -198,16 +267,20 @@ export type Database = {
           name: string
           owner_user_id: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
+          refund_cutoff_hours?: number
+          reminder_lead_hours?: number
           renewal_date?: string | null
           slug: string
           sms_sender?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
+          whatsapp_enabled?: boolean
         }
         Update: {
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           created_at?: string
           currency?: string
+          deposit_hold_minutes?: number
           id?: string
           max_advance_days?: number
           max_locations?: number
@@ -216,11 +289,14 @@ export type Database = {
           name?: string
           owner_user_id?: string
           plan?: Database["public"]["Enums"]["subscription_plan"]
+          refund_cutoff_hours?: number
+          reminder_lead_hours?: number
           renewal_date?: string | null
           slug?: string
           sms_sender?: string | null
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
           updated_at?: string
+          whatsapp_enabled?: boolean
         }
         Relationships: []
       }
@@ -235,6 +311,12 @@ export type Database = {
           notes: string | null
           phone: string | null
           updated_at: string
+          whatsapp_consent_source:
+            | Database["public"]["Enums"]["consent_source"]
+            | null
+          whatsapp_opt_in: boolean
+          whatsapp_opt_in_at: string | null
+          whatsapp_opt_out_at: string | null
         }
         Insert: {
           brand_id: string
@@ -246,6 +328,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           updated_at?: string
+          whatsapp_consent_source?:
+            | Database["public"]["Enums"]["consent_source"]
+            | null
+          whatsapp_opt_in?: boolean
+          whatsapp_opt_in_at?: string | null
+          whatsapp_opt_out_at?: string | null
         }
         Update: {
           brand_id?: string
@@ -257,6 +345,12 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           updated_at?: string
+          whatsapp_consent_source?:
+            | Database["public"]["Enums"]["consent_source"]
+            | null
+          whatsapp_opt_in?: boolean
+          whatsapp_opt_in_at?: string | null
+          whatsapp_opt_out_at?: string | null
         }
         Relationships: [
           {
@@ -414,6 +508,109 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_events: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json | null
+          payment_id: string | null
+          signature_verified: boolean | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          payment_id?: string | null
+          signature_verified?: boolean | null
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          payment_id?: string | null
+          signature_verified?: boolean | null
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          appointment_id: string | null
+          brand_id: string
+          created_at: string
+          currency: string
+          failure_reason: string | null
+          id: string
+          idempotency_key: string
+          kind: Database["public"]["Enums"]["payment_kind"]
+          parent_payment_id: string | null
+          provider: string
+          provider_ref: string | null
+          state: Database["public"]["Enums"]["payment_state"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          appointment_id?: string | null
+          brand_id: string
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          idempotency_key: string
+          kind: Database["public"]["Enums"]["payment_kind"]
+          parent_payment_id?: string | null
+          provider: string
+          provider_ref?: string | null
+          state?: Database["public"]["Enums"]["payment_state"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          appointment_id?: string | null
+          brand_id?: string
+          created_at?: string
+          currency?: string
+          failure_reason?: string | null
+          id?: string
+          idempotency_key?: string
+          kind?: Database["public"]["Enums"]["payment_kind"]
+          parent_payment_id?: string | null
+          provider?: string
+          provider_ref?: string | null
+          state?: Database["public"]["Enums"]["payment_state"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_parent_payment_id_fkey"
+            columns: ["parent_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
             referencedColumns: ["id"]
           },
         ]
@@ -642,6 +839,11 @@ export type Database = {
           created_at: string
           currency: string
           default_price: number
+          deposit_amount: number | null
+          deposit_mandatory: boolean
+          deposit_new_clients_only: boolean
+          deposit_percentage: number | null
+          deposit_required: boolean
           description: string | null
           duration_minutes: number
           id: string
@@ -655,6 +857,11 @@ export type Database = {
           created_at?: string
           currency?: string
           default_price?: number
+          deposit_amount?: number | null
+          deposit_mandatory?: boolean
+          deposit_new_clients_only?: boolean
+          deposit_percentage?: number | null
+          deposit_required?: boolean
           description?: string | null
           duration_minutes?: number
           id?: string
@@ -668,6 +875,11 @@ export type Database = {
           created_at?: string
           currency?: string
           default_price?: number
+          deposit_amount?: number | null
+          deposit_mandatory?: boolean
+          deposit_new_clients_only?: boolean
+          deposit_percentage?: number | null
+          deposit_required?: boolean
           description?: string | null
           duration_minutes?: number
           id?: string
@@ -896,11 +1108,122 @@ export type Database = {
           },
         ]
       }
+      whatsapp_messages: {
+        Row: {
+          appointment_id: string | null
+          body_preview: string | null
+          brand_id: string
+          client_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          kind: string
+          provider: string
+          provider_sid: string | null
+          status: string
+          to_phone: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          body_preview?: string | null
+          brand_id: string
+          client_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind: string
+          provider?: string
+          provider_sid?: string | null
+          status: string
+          to_phone: string
+        }
+        Update: {
+          appointment_id?: string | null
+          body_preview?: string | null
+          brand_id?: string
+          client_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          kind?: string
+          provider?: string
+          provider_sid?: string | null
+          status?: string
+          to_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_templates: {
+        Row: {
+          brand_id: string | null
+          content_sid: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id?: string | null
+          content_sid?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string | null
+          content_sid?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_templates_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      appointment_balance_due: {
+        Args: { _appointment_id: string }
+        Returns: {
+          balance: number
+          currency: string
+          deposit_paid: number
+          total: number
+        }[]
+      }
+      appointment_holds_slot: {
+        Args: {
+          _deposit_status: Database["public"]["Enums"]["deposit_status"]
+          _hold_expires_at: string
+          _status: Database["public"]["Enums"]["appointment_status"]
+        }
+        Returns: boolean
+      }
       can_manage_location: {
         Args: { _location_id: string; _user_id: string }
         Returns: boolean
@@ -935,9 +1258,16 @@ export type Database = {
         }
         Returns: string
       }
+      dispatch_whatsapp_reminder_sweep: { Args: never; Returns: string }
       email_has_other_brand_account: {
         Args: { _brand: string; _email: string }
         Returns: boolean
+      }
+      expire_stale_deposit_holds: {
+        Args: { _older_than_minutes?: number }
+        Returns: {
+          expired_count: number
+        }[]
       }
       get_user_brand: { Args: { _user_id: string }; Returns: string }
       has_location_access: {
@@ -964,10 +1294,74 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      payment_confirm_charge: {
+        Args: {
+          _amount: number
+          _payload: Json
+          _provider: string
+          _provider_ref: string
+        }
+        Returns: {
+          applied: boolean
+          appointment_id: string
+          reason: string
+        }[]
+      }
+      payment_fail_charge: {
+        Args: {
+          _payload: Json
+          _provider: string
+          _provider_ref: string
+          _reason: string
+        }
+        Returns: {
+          applied: boolean
+          appointment_id: string
+          reason: string
+        }[]
+      }
+      payment_log_event: {
+        Args: {
+          _appointment_id: string
+          _event_type: string
+          _payload: Json
+          _payment_id: string
+          _signature_verified: boolean
+        }
+        Returns: string
+      }
+      payment_open_charge: {
+        Args: {
+          _amount: number
+          _appointment_id: string
+          _brand_id: string
+          _currency: string
+          _idempotency_key: string
+          _provider: string
+          _provider_ref: string
+        }
+        Returns: string
+      }
+      payment_record_refund: {
+        Args: {
+          _amount: number
+          _appointment_id: string
+          _brand_id: string
+          _currency: string
+          _failure_reason?: string
+          _idempotency_key: string
+          _parent_payment_id: string
+          _provider: string
+          _provider_ref: string
+          _succeeded: boolean
+        }
+        Returns: string
+      }
       public_book_appointment: {
         Args: {
           _brand_id: string
           _client_name: string
+          _deposit_skipped?: boolean
           _location_id: string
           _notes: string
           _phone: string
@@ -977,11 +1371,27 @@ export type Database = {
         }
         Returns: {
           appointment_id: string
+          deposit_amount: number
+          deposit_required: boolean
           error: string
+          hold_expires_at: string
           token: string
         }[]
       }
-      public_cancel_by_token: { Args: { _token: string }; Returns: boolean }
+      public_cancel_by_token: {
+        Args: { _token: string }
+        Returns: {
+          appointment_id: string
+          brand_id: string
+          charge_id: string
+          charge_ref: string
+          currency: string
+          ok: boolean
+          outcome: string
+          refund_amount: number
+          refund_due: boolean
+        }[]
+      }
       public_compute_slots: {
         Args: {
           _brand_id: string
@@ -1010,11 +1420,15 @@ export type Database = {
         Args: { _token: string }
         Returns: {
           appointment_id: string
+          balance_due: number
           brand_id: string
           brand_name: string
           brand_slug: string
           client_name: string
           currency: string
+          deposit_amount: number
+          deposit_paid_amount: number
+          deposit_status: Database["public"]["Enums"]["deposit_status"]
           duration_minutes: number
           ends_at: string
           location_address: string
@@ -1070,6 +1484,11 @@ export type Database = {
         Returns: {
           category: string
           currency: string
+          deposit_amount: number
+          deposit_mandatory: boolean
+          deposit_new_clients_only: boolean
+          deposit_percentage: number
+          deposit_required: boolean
           description: string
           duration_minutes: number
           id: string
@@ -1092,8 +1511,104 @@ export type Database = {
         }
         Returns: string
       }
+      public_resolve_deposit: {
+        Args: {
+          _brand_id: string
+          _location_id: string
+          _phone: string
+          _service_id: string
+        }
+        Returns: {
+          currency: string
+          deposit_amount: number
+          deposit_mandatory: boolean
+          deposit_required: boolean
+          is_new_client: boolean
+        }[]
+      }
       public_verify_otp: {
         Args: { _brand_id: string; _code: string; _phone: string }
+        Returns: boolean
+      }
+      staff_request_deposit: {
+        Args: { _amount?: number; _appointment_id: string }
+        Returns: {
+          amount: number
+          brand_id: string
+          currency: string
+          ok: boolean
+          reason: string
+        }[]
+      }
+      whatsapp_consent_from_booking: {
+        Args: {
+          _appointment_id: string
+          _opt_in: boolean
+          _source: Database["public"]["Enums"]["consent_source"]
+        }
+        Returns: {
+          client_id: string
+          opted_in: boolean
+        }[]
+      }
+      whatsapp_due_reminders: {
+        Args: { _limit?: number }
+        Returns: {
+          appointment_id: string
+          brand_id: string
+          client_id: string
+          client_name: string
+          location_name: string
+          phone: string
+          service_name: string
+          starts_at: string
+          timezone: string
+        }[]
+      }
+      whatsapp_get_template: {
+        Args: { _brand_id: string; _kind: string }
+        Returns: {
+          content_sid: string
+          is_active: boolean
+        }[]
+      }
+      whatsapp_log_message: {
+        Args: {
+          _appointment_id: string
+          _body_preview: string
+          _brand_id: string
+          _client_id: string
+          _error_message: string
+          _kind: string
+          _provider: string
+          _provider_sid: string
+          _status: string
+          _to_phone: string
+        }
+        Returns: string
+      }
+      whatsapp_mark_reminded: {
+        Args: { _appointment_id: string }
+        Returns: boolean
+      }
+      whatsapp_opt_in_by_phone: {
+        Args: { _phone: string }
+        Returns: {
+          clients_updated: number
+        }[]
+      }
+      whatsapp_opt_out_by_phone: {
+        Args: { _phone: string }
+        Returns: {
+          clients_updated: number
+        }[]
+      }
+      whatsapp_set_consent: {
+        Args: {
+          _client_id: string
+          _opt_in: boolean
+          _source: Database["public"]["Enums"]["consent_source"]
+        }
         Returns: boolean
       }
     }
@@ -1101,7 +1616,15 @@ export type Database = {
       app_role: "owner" | "manager" | "receptionist" | "staff"
       appointment_status: "scheduled" | "completed" | "cancelled" | "no_show"
       billing_cycle: "monthly" | "yearly"
+      consent_source:
+        | "public_booking"
+        | "staff_booking"
+        | "staff_manual"
+        | "inbound_stop"
+      deposit_status: "pending" | "paid" | "refunded" | "forfeited" | "expired"
+      payment_kind: "charge" | "refund"
       payment_method: "cash" | "card" | "bank_transfer"
+      payment_state: "pending" | "succeeded" | "failed" | "cancelled"
       stock_movement_type: "restock" | "usage" | "waste" | "adjustment"
       subscription_plan: "starter" | "growth" | "enterprise"
       subscription_status: "active" | "expiring" | "expired" | "trial"
@@ -1230,12 +1753,24 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["owner", "manager", "receptionist", "staff"],
       appointment_status: ["scheduled", "completed", "cancelled", "no_show"],
       billing_cycle: ["monthly", "yearly"],
+      consent_source: [
+        "public_booking",
+        "staff_booking",
+        "staff_manual",
+        "inbound_stop",
+      ],
+      deposit_status: ["pending", "paid", "refunded", "forfeited", "expired"],
+      payment_kind: ["charge", "refund"],
       payment_method: ["cash", "card", "bank_transfer"],
+      payment_state: ["pending", "succeeded", "failed", "cancelled"],
       stock_movement_type: ["restock", "usage", "waste", "adjustment"],
       subscription_plan: ["starter", "growth", "enterprise"],
       subscription_status: ["active", "expiring", "expired", "trial"],

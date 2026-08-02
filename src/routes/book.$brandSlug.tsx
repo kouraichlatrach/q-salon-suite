@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/error-message";
 import { formatMoney } from "@/lib/money";
@@ -532,6 +533,9 @@ function VerifyStep({
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [code, setCode] = useState("");
+  // Unchecked by default — WhatsApp consent must be an affirmative act, not a
+  // pre-ticked default (Section 10 item 1 / Meta policy).
+  const [whatsappOptIn, setWhatsappOptIn] = useState(false);
   const [sent, setSent] = useState(false);
   const [devCode, setDevCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -581,6 +585,7 @@ function VerifyStep({
           code: code.trim(),
           notes: notes.trim() || null,
           brandSlug,
+          whatsappOptIn,
         },
       });
 
@@ -692,6 +697,27 @@ function VerifyStep({
               dir="auto"
             />
           </div>
+        )}
+
+        {!sent && (
+          <label
+            htmlFor="bk-wa-optin"
+            className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card p-3.5"
+          >
+            <Checkbox
+              id="bk-wa-optin"
+              checked={whatsappOptIn}
+              onCheckedChange={(v) => setWhatsappOptIn(v === true)}
+              className="mt-0.5"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Send me WhatsApp updates about this appointment</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Booking confirmation and a reminder before your visit. Reply STOP any
+                time to opt out.
+              </span>
+            </span>
+          </label>
         )}
 
         {sent && (

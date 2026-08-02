@@ -38,3 +38,14 @@ SECRET KEY SB/
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase CLI local state — pooler-url holds a DB connection string with
+# credentials. Same hazard class as the .env incident; never commit.
+supabase/.temp/
+
+# Local Claude Code agent config (launch config, settings) — machine-specific.
+.claude/
+
+# This repo uses bun (bun.lock). A stray npm lockfile would compete as the
+# source of truth for dependency resolution.
+package-lock.json

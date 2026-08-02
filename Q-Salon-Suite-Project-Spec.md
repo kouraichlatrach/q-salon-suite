@@ -20,11 +20,11 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 4. Clients: shared brand-wide (not siloed per location); appointments/transactions still tagged per-location.
 5. Stock: shared product catalog brand-wide; quantity tracked per-location.
 6. Services/pricing: shared catalog; Owner-only per-location price overrides. Pricing is shown client-facing on the Self-Booking flow — no longer purely internal.
-7. Income: manual logging (amount + payment method label) as the default; **now being extended with real payment processing — see Section 9.**
-8. Subscription billing: manual/offline today; **automation planned — see Section 9, Phase C.**
+7. Income: manual logging by default; extended with real payment processing (see Section 9).
+8. Subscription billing: manual/offline today; automation planned (Section 9, Phase C).
 9. Platform Admin: separate internal tool, outside customer-facing RLS, gated by a `platform_admins` allowlist table.
 10. Language: English-only UI chrome; Arabic-capable data fields (`dir="auto"`).
-11. Notifications: manual `wa.me` link only — no automated messaging yet (WhatsApp Automation is next on the roadmap after Payments).
+11. Notifications: manual `wa.me` link only today; **full WhatsApp automation now specced — see Section 10.**
 12. Scheduling: basic conflict prevention (staff working hours + leave), hard DB block on double-booking.
 13. Client profile: text-only (no photos) + structured per-visit service record.
 14. Reports: revenue, stock, staff performance — no profitability/margin math yet.
@@ -36,7 +36,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 
 ---
 
-## 3. Modules Shipped
+## 3. Modules Shipped / In Progress
 
 | # | Module | Status |
 |---|---|---|
@@ -49,8 +49,10 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 | 7 | Platform Admin (`/admin`) | ✅ Shipped, gated by `platform_admins` |
 | 8 | Locations & Settings (`/app/locations`, `/app/settings`) | ✅ Shipped, DB-enforced location plan limit |
 | 9 | Self-Booking Portal (`/book/:brandSlug`, `/manage/:token`) | ✅ Shipped and edge-case tested. |
-| 10 | **Payments — Phase A (Booking Deposits)** | 🟡 **Built and verified end-to-end against a mock provider; not yet swapped to real Dibsy.** All internal logic (deposit rules, slot holds, expiry, refund policy, webhook verification, audit log) is done and tested. What remains is a `DibsyPaymentProvider` implementing the existing `PaymentProvider` interface, plus the swap-in checklist in Section 9. |
-| 11 | **Payments — Phases B & C (In-Salon Checkout, Subscription Billing)** | 📋 **Fully specced, not yet built.** See Section 9. Per Section 7, do not start B until A is running against real Dibsy. |
+| 10 | **Payments — Phase A (Booking Deposits)** | ✅ **Built and verified against a mock payment provider**, including two full manual browser walkthroughs that caught and fixed critical bugs automated/DB-level testing missed entirely. **Not yet swapped to real Dibsy** — no sandbox account exists yet (business not yet registered). See Section 9. |
+| 11 | Payments — Phase B (In-Salon Checkout) | 📋 Specced, not built. Do not start until Phase A is running against real Dibsy, not the mock provider. |
+| 12 | Payments — Phase C (Subscription Billing) | 📋 Specced, not built. |
+| 13 | **WhatsApp Automation** | 🟡 **Built except the send itself.** Consent capture, opt-out, scheduling, and audit logging are all done and working. The actual outbound message is blocked by the Twilio **trial account** (error 21654 — see Section 10). |
 
 ---
 
@@ -58,14 +60,14 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 
 These are lessons earned the hard way — worth checking for explicitly in every future module, not just fixed once and forgotten.
 
-1. **Missing `<Outlet />` on nested/parent routes.** Found and fixed twice: first in `app.tsx` (blocked all of `/app/*`), then again in `app.clients.tsx`, `app.staff.tsx`, and `book.$brandSlug.tsx` (blocked client/staff detail pages and the booking lookup page — the second occurrence had been live and unnoticed since those modules originally shipped). **Any new parent route with child routes must be checked for this explicitly**, and — critically — must be re-verified after any commit/merge/branch switch, since it's possible for a correct fix to exist on one branch while the actually-running dev server serves an older, unfixed branch. Verify against what's actually running, not just what's in a merged PR.
+1. **Missing `<Outlet />` on nested/parent routes.** Found and fixed three times now: `app.tsx` (blocked all of `/app/*`), then `app.clients.tsx`/`app.staff.tsx`/`book.$brandSlug.tsx` (blocked detail pages and the lookup route), and the pattern held correctly for the newer `book.$brandSlug.confirmed.tsx` child route added during Phase A UX fixes — confirmed *because* it was checked explicitly, not assumed. **Any new parent route with child routes must be checked for this explicitly**, and re-verified after any commit/merge/branch switch, since a correct fix can exist on one branch while the running dev server serves an older, unfixed branch.
 2. **`pgcrypto` functions live in the `extensions` schema, not `public`.** A `SECURITY DEFINER` function with `SET search_path TO 'public'` will fail on unqualified `crypt()`/`gen_salt()`/`gen_random_bytes()` calls. Always fully qualify (`extensions.crypt(...)`) — do not widen the search_path as the fix, since that's a security regression for SECURITY DEFINER functions.
-3. **Client/data rollback scope in multi-step RPCs.** `public_book_appointment` originally inserted the client row *before* the exception-handled block wrapping the appointment insert, so a `slot_taken` failure rolled back the appointment but left an orphan client row. Any RPC doing multiple related inserts needs every insert that should be atomic together inside the same exception scope. **This applies directly to Payments** — any RPC touching both an appointment/deposit state and a payment record needs the same atomic-scope discipline.
-4. **Generic error messages hide real causes.** Fixed multiple times independently: the `err instanceof Error` pattern (Supabase/PostgREST errors are plain objects, fixed via a shared `errorMessage()` helper), and a static `errorComponent` on a TanStack Router route that always showed the same text regardless of the actual thrown error. Always surface the real error, at least in non-production contexts.
-5. **`supabase db push` / migration drift.** Root cause was historical, not ongoing: Lovable-applied migrations recorded `version` at apply-time (a few seconds after the filename's declared timestamp), making every migration look "foreign" to the CLI. Fixed via careful realignment (see Section 6). Going forward, all new migrations should be created and applied via the Supabase CLI to avoid reintroducing this drift.
-6. **`.env` hygiene.** `.env` was tracked in git and briefly exposed a real Supabase service-role key (see Section 6 for the full incident). Now gitignored with a `.env.example` template. **Known hazard:** if `.env` was ever tracked historically, a `git reset --hard` to a commit before it was untracked will delete the local file — keep a backup of real key values somewhere outside git (e.g. a password manager) rather than relying on the working copy alone.
-7. **Enum columns written through a `CASE` expression.** Postgres types a `CASE` by its *result*, not by the individual literals inside it, and that result is `text`. Writing `CASE WHEN x THEN 'succeeded' ELSE 'failed' END` into an enum column fails with `42804: column "…" is of type … but expression is of type text`, even though each literal on its own would have been inferred correctly. Always cast the whole expression: `(CASE … END)::public.my_enum`. **Why this one is dangerous rather than merely annoying:** it only fires on the branch that actually executes, so a rarely-taken path can pass every review and every happy-path test, then throw in production. It was found in `payment_record_refund`, where the provider refund had already succeeded — money left the gateway, the client was refunded, and the system recorded neither the refund nor the state change. Applies to any conditional enum write anywhere in the schema, not just payments.
-8. **`IMMUTABLE` on a function that reads `now()` (or any changing state).** `IMMUTABLE` is a promise to the planner that output depends solely on the arguments, which licenses constant-folding and caching of the result. A function that consults `now()`, a table, or a setting is at most `STABLE`. Postgres does **not** validate this at creation time — it accepts the wrong label silently and the bug surfaces later as a value that "sticks" when it should have changed. Found on `appointment_holds_slot`, where a mislabelled expiry predicate could have kept treating an expired slot hold as live (or the reverse) within a plan. **Rule of thumb:** `IMMUTABLE` only for pure arithmetic/string functions over their arguments; `STABLE` the moment `now()`, a query, or a GUC is involved. This matters most for predicates shared between a trigger and a read path, since the two can silently disagree.
+3. **Client/data rollback scope in multi-step RPCs.** Any RPC doing multiple related inserts (or inserts + external side effects, like a payment record) needs every step that should be atomic together inside the same exception scope. First hit with orphan client rows on failed self-bookings; the same class of risk applies to any Payments RPC touching both appointment/deposit state and a payment record.
+4. **Generic error messages hide real causes.** Fixed multiple times independently: the `err instanceof Error` pattern (Supabase/PostgREST errors are plain objects), and a static `errorComponent` that always showed the same text regardless of the actual thrown error. Always surface the real error, at least in non-production contexts.
+5. **`supabase db push` / migration drift.** Root cause was historical: Lovable-applied migrations recorded `version` at apply-time (a few seconds after the filename's declared timestamp), making every migration look "foreign" to the CLI. Fixed via careful realignment; verified idempotent with a no-op test migration. All new migrations should go through the Supabase CLI to avoid reintroducing this drift.
+6. **`.env` hygiene.** `.env` was tracked in git and briefly exposed a real Supabase service-role key. Resolved: rotated, legacy JWT-based keys disabled entirely, `.env` gitignored with a `.env.example` template. **Known hazard:** a `git reset --hard` to a commit before `.env` was untracked will delete the local file — keep a backup of real key values somewhere outside git.
+7. **Enum values assigned through a `CASE` expression get typed as `text`, not the enum, and Postgres won't implicitly cast it.** Found in Phase A: a refund-recording RPC used `CASE WHEN ... THEN 'succeeded' ELSE 'failed' END` to set a `payment_state` enum column — this only fails at the exact moment the branch that hits the enum column executes, meaning it can pass code review and pass "happy path" testing cleanly, then fail in production on the first real edge case. In this instance, that edge case was a refund: the provider had already returned money before the write failed, so the appointment stayed marked "paid" with no refund on record — a silent money-loss bug, caught only because the database was checked directly after the UI reported success. **Any conditional enum assignment needs an explicit `::enum_type` cast on every branch, not just at the final assignment.**
+8. **`IMMUTABLE` on a function that reads `now()` (or anything else non-constant) is a correctness trap, not just a style issue.** Postgres does not validate that an `IMMUTABLE` label is actually true — it trusts the declaration and may let the query planner constant-fold the function's result, meaning a value that should change over time (like an expiry check) can silently "stick" at a stale result. This is most dangerous when the same predicate is shared between a database trigger (enforcing a rule) and a read path (computing availability) — a subtly wrong label can make both agree on an incorrect answer rather than one surfacing an obvious error. Found in Phase A on the appointment-hold expiry check; corrected to `STABLE`. **Any function reading `now()`, a sequence, or other session/transaction-varying state must never be declared `IMMUTABLE`.**
 
 ---
 
@@ -77,38 +79,36 @@ These are lessons earned the hard way — worth checking for explicitly in every
 - Real data loads correctly (locations, services with effective per-location pricing, staff).
 - Staff selection: both a specific named staff member and "No preference" (auto-assignment) — confirmed the auto-assign logic genuinely distributes between real qualified candidates via `staff_services`, not just defaulting to one.
 - Availability computed live against `staff_schedules` + `staff_leave` + existing `appointments`, respecting Owner-configurable min-notice/max-advance settings.
-- Phone OTP verification (dev-mode fallback shows the code on-screen when SMS/Twilio isn't connected — real provider integration still pending).
+- Phone OTP verification (dev-mode fallback shows the code on-screen when SMS/Twilio isn't connected — real provider integration still pending, see Section 10).
 - Booking creates a real `appointments` row, `status = 'scheduled'`.
-- **Race-condition handling:** verified by deliberately winning a slot with a competing request mid-flow — the losing request gets a graceful re-offer (fresh slots shown, no dead-end), and the DB-level overlap trigger guarantees only one row ever persists for a contested slot.
-- **Cancel via manage link:** sets `status = 'cancelled'`, does not delete the row. Manage link **survives** cancellation and shows a clear "this booking was cancelled" state rather than a dead link.
+- **Race-condition handling:** verified by deliberately winning a slot with a competing request mid-flow — the losing request gets a graceful re-offer, and the DB-level overlap trigger guarantees only one row ever persists for a contested slot.
+- **Cancel via manage link:** sets `status = 'cancelled'`, does not delete the row. Manage link survives cancellation and shows a clear "this booking was cancelled" state.
 - **Reschedule via manage link:** updates the same row (no duplicate), old slot correctly frees up, new slot correctly locks.
 - **"Look up my booking" fallback:** phone OTP re-verification, correctly scoped to only that phone number's upcoming bookings, clean empty state for unknown numbers.
 
 **Schema additions:** `staff_services` (staff-to-service capability mapping, required for "No preference" auto-assignment), `booking_otps`, `booking_tokens`. All `public_*` RPCs backing this feature are locked to `service_role` only — accessed through server-side functions, not directly callable by the browser.
 
-**Still open / not yet done:**
-- Real SMS provider (Twilio) not yet connected — dev-mode on-screen OTP code is the current fallback.
-- ~~No payment/deposit collection at booking time~~ — added by Section 9 Phase A, now built against a mock provider. The booking flow returns a checkout URL and holds the slot at DB level while payment is pending; a signed webhook is the only thing that confirms it.
-
 ---
 
 ## 6. Incidents & Infrastructure Fixes (for the record)
 
-**Security incident — exposed service-role key.** `.env` was git-tracked and, during a period when the repo was made public for code review purposes, the Supabase service-role key was exposed in git history. **Resolved:** rotated to the new-format `sb_secret_...` key, the legacy JWT-based `anon`/`service_role` keys fully disabled in Supabase (not just rotated — disabled entirely, since the app had already migrated off the legacy format), `.env` untracked from git with `.env.example` added. No evidence of misuse found. Lesson: never make a repo public with a tracked `.env`, even temporarily — share diffs/snippets instead.
+**Security incident — exposed service-role key.** `.env` was git-tracked and, during a period when the repo was made public for code review purposes, the Supabase service-role key was exposed in git history. **Resolved:** rotated to the new-format `sb_secret_...` key, the legacy JWT-based `anon`/`service_role` keys fully disabled in Supabase, `.env` untracked from git with `.env.example` added. No evidence of misuse found.
 
-**Migration pipeline drift.** `supabase db push` reported all 14 original migrations as unrecognized due to a systematic few-second offset between filename timestamps and recorded apply-time versions. Root cause confirmed harmless (not corruption). Fixed via careful realignment preserving all stored migration SQL history; verified idempotent with a no-op test migration. `db push` now works cleanly.
+**Migration pipeline drift.** `supabase db push` reported all original migrations as unrecognized due to a systematic few-second offset between filename timestamps and recorded apply-time versions. Root cause confirmed harmless. Fixed via careful realignment preserving all stored migration SQL history; verified idempotent. `db push` now works cleanly.
+
+**Spec document was never version-controlled.** Discovered during the Phase A wrap-up: this file — the one document explicitly meant to survive across sessions — had been sitting untracked in git the entire time, meaning it was as vulnerable to being silently lost in a branch switch as `.env` was. Now tracked; future updates show up in diffs and commit history like everything else.
 
 ---
 
-## 7. Recommended Working Process (proven across the Self-Booking build)
+## 7. Recommended Working Process
 
-1. **Never accept unverified output** — run it, hit the real route, query the real database. This caught every bug in this document.
+1. **Never accept unverified output** — run it, hit the real route, query the real database. Critically: **database-level verification is not sufficient on its own.** Phase A passed every automated and direct-database check, and still had a critical bug (a mandatory deposit being silently skipped) that only a real manual browser walkthrough caught — the server-side logic was correct, but the UI silently dropped fields it didn't know to use. Any user-facing flow needs an actual human click-through, screenshots included, before being called done — not just proof the backend behaves correctly.
 2. **Don't stop at the first plausible explanation.** More than once, an initial diagnosis was wrong and only caught because it was pushed to verify further.
 3. **Write regression tests for every bug class in Section 4** so they can't silently reappear.
 4. **Commit and merge promptly.** Working code left uncommitted or on an unmerged branch is invisible to the running app the moment a branch switch happens.
 5. **Spec-first, module-by-module, verify before moving on.**
-6. **Payments gets extra paranoia**, more than any module so far: sandbox/test mode only until fully verified, idempotency keys on every payment-writing operation, append-only audit log, extra review pass before touching a real card. Build and ship Phases A → B → C of Section 9 sequentially, never combined into one release, regardless of how much of the spec is already done.
-7. **Never let an agent perform an actual authenticated login on your behalf**, even on test accounts.
+6. **Payments gets extra paranoia**, more than any module so far: sandbox/test mode only until fully verified, idempotency keys on every payment-writing operation, append-only audit log, extra review pass before touching a real card. Build and ship Phases A → B → C sequentially, never combined into one release.
+7. **Never let an agent perform an actual authenticated login on your behalf**, even on test accounts. (Public, unauthenticated flows — like the Self-Booking client walkthrough — are fine for an agent to exercise directly.)
 
 ---
 
@@ -117,98 +117,142 @@ These are lessons earned the hard way — worth checking for explicitly in every
 In priority order:
 
 1. ~~Self-Booking~~ — ✅ done (Section 5)
-2. **Payments** — ✅ fully specced (Section 9). **Phase A built and verified against a mock provider; awaiting a Dibsy sandbox account to swap in the real adapter** (see the Phase A swap-in checklist). Phases B and C not started. Build order remains Phase A → B → C, one at a time, each fully verified before the next — and per Section 7 item 6, Phase A should be running against real Dibsy before B begins.
-3. **WhatsApp Automation** — not yet specced. Real Twilio/WhatsApp Business API integration, replacing the manual `wa.me` link and the current dev-mode OTP fallback. Natural overlap with Payments Phase B (WhatsApp payment links), worth specing next once Phase A ships.
+2. **Payments** — Phase A ✅ built against mock provider (Section 9); real Dibsy swap-in pending business registration/sandbox access. Phases B and C specced, not started — do not begin Phase B until Phase A is verified against real Dibsy.
+3. **WhatsApp Automation** — 🟡 built except the send (Section 10); unblocking needs a paid Twilio account, not more code. Note the scheduled-job infrastructure this was supposed to reuse **did not actually exist** — Phase A shipped `expire_stale_deposit_holds()` but nothing ever called it. pg_cron is now installed and both jobs are scheduled, so that dependency is genuinely satisfied for the first time.
 4. **Memberships, Packages & Gift Cards (client-facing)** — not yet specced. Distinct from the existing internal services/packages pricing catalog.
 
 Lower priority, not yet specced: marketing/email campaigns, payroll & commission tracking, digital consent/intake forms, two-way client texting, native mobile app, deeper BI, inter-location stock transfer, labor-law-aware leave tracking.
 
 ---
 
-## 9. Payments — Fully Specced (Phase A built against a mock provider)
+## 9. Payments — Phase A Built (Mock Provider); Phases B/C Specced
 
-**Gateway decision:** **Dibsy** — chosen and confirmed as the single payment provider for the entire product, across all three phases below. Key reasons: Qatar-domiciled entity (Paywise QFC Branch), QCB-licensed, PCI-DSS compliant, accepts Visa/Mastercard/NAPS/QNB cards plus Apple Pay/Google Pay/Himyan, explicitly markets subscription/recurring billing support, and generates shareable payment links (fits the product's WhatsApp-first design). Settlement twice weekly, flat 2.5% + 1 QAR per transaction.
+**Gateway decision:** **Dibsy** — the single payment provider for the entire product, across all three phases. Qatar-domiciled entity (Paywise QFC Branch), QCB-licensed, PCI-DSS compliant, accepts Visa/Mastercard/NAPS/QNB cards plus Apple Pay/Google Pay/Himyan, markets subscription/recurring billing support, generates shareable payment links. Settlement twice weekly, flat 2.5% + 1 QAR per transaction.
 
-**Important constraint confirmed during research:** Dibsy is online/digital-only — it does **not** support physical card terminals or Tap to Pay/SoftPOS. This was a deliberate scope decision (see Phase B) to stay single-vendor rather than integrate a second payment provider (e.g. SADAD or Tap Payments, both of which do offer terminals + SoftPOS + links under one dashboard) purely to cover those two channels. Terminals/Tap to Pay are **off the roadmap for now** — revisit only if real salon usage shows QR/WhatsApp checkout genuinely isn't sufficient.
+**Confirmed constraint:** Dibsy is online/digital-only — no physical terminals or Tap to Pay/SoftPOS. Deliberate scope decision to stay single-vendor (Phase B) rather than integrate a second provider purely for those two channels.
 
-**Cross-phase architecture, established in Phase A and reused throughout:**
-- **Webhook-as-source-of-truth.** A signature-verified, server-to-server webhook from Dibsy is the *only* thing that ever marks a payment as succeeded. Client-side redirects back from Dibsy's checkout are cosmetic/UX only (a "confirming your payment..." state) — never trusted as proof of payment. This closes off a real payment-bypass vulnerability (spoofed redirect URLs) and is non-negotiable across all phases.
-- **Idempotency keys** on every payment-writing operation (per Section 7).
-- **Append-only audit log** for every payment/refund event — never mutate a payment record in place.
+**Cross-phase architecture:**
+- **Webhook-as-source-of-truth**, applied correctly even to the client-facing confirmation screen built during Phase A's UX fixes: it displays "Confirming your payment…" and re-checks rather than asserting success, if the webhook hasn't landed yet by the time the client's browser redirect arrives.
+- **Idempotency keys** on every payment-writing operation — verified in Phase A via a literal duplicate-webhook replay test (confirmed exactly one charge recorded, replay correctly refused).
+- **Append-only audit log** for every payment/refund event.
+
+### Phase A — Booking Deposits: Built & Verified (Mock Provider)
+
+**Architecture:** Built behind a `PaymentProvider` interface (`createCharge()`, `verifyWebhookSignature()`, `refund()`) so swapping the mock implementation for a real `DibsyPaymentProvider` later is a contained change, not a rewrite. Same adapter pattern already established for SMS (`sms.server.ts`).
+
+**Spec, as built:**
+1. Owner sets, per service: flat QAR amount OR percentage (Owner's choice per service), plus `deposit_required` (mandatory/optional).
+2. Client-type targeting: deposits can also trigger automatically for **new clients** (no completed appointment history), independent of the per-service rule.
+3. Optional-and-skipped deposits show a staff-visible flag on the appointment (same visual pattern as the no-show badge).
+4. Deposit counts toward the total — Appointment Complete flow shows deposit-already-collected and the remainder.
+5. Refund policy: time-based, Owner-configurable cutoff — full refund before cutoff, forfeited if late/no-show.
+6. Refunds are fully automatic on qualifying cancellation via the existing manage-link flow, logged immutably.
+7. In-store manual deposit trigger for walk-ins, resolving the amount from the service's own configured rule when no explicit amount is given.
+8. **Real DB-level hold:** pending appointments count against the existing `prevent_appointment_overlap` trigger immediately — verified a competing booking attempt against a pending slot is correctly rejected.
+9. **Expiry handled two ways:** check-on-read (availability always correct instantly, no dependency on job timing) AND a periodic cleanup job (data hygiene) — both verified independently.
+
+**Four real bugs found and fixed during the build (via direct testing, not code review):**
+1. An expiry-check function was incorrectly marked `IMMUTABLE` despite reading `now()` — see Section 4, item 8.
+2. A refund-recording RPC failed on an enum-cast error from a `CASE` expression — see Section 4, item 7. This was a genuine silent-money-loss bug: the provider had already refunded before the database write failed.
+3. In-store deposit requests were unusable for their primary case (walk-ins with no pre-computed amount) — fixed to resolve from the service's own configured rule.
+4. The append-only audit-log guard blocked deletion of any appointment/payment with audit history, because `ON DELETE SET NULL` foreign keys issue an UPDATE the guard correctly rejects — fixed by decoupling the FKs so the log outlives what it describes.
+
+**A fifth, more serious bug found only by a real manual browser walkthrough — not by any database check:**
+5. The booking confirmation UI silently dropped the `depositRequired`/`checkoutUrl` fields the server correctly returned, sending clients straight to a "You're booked" screen with **no payment collected at all** on services with a mandatory deposit. The appointment sat in a `pending` hold that would have been silently cancelled ~15 minutes later by the cleanup job — the client would believe they were booked, the slot would quietly vanish, and neither party would find out until the client showed up (or didn't). Caught only because the flow was walked through in a real browser rather than verified via database queries alone — **this is now the canonical example, in Section 7, of why database-level verification is insufficient on its own.**
+
+**UX gaps found in the same walkthrough and subsequently fixed, in priority order:**
+1. Added a real post-payment confirmation screen (`/book/:brandSlug/confirmed`) — shows deposit paid, balance due, and frames the manage link as something to save. Waits for real webhook confirmation rather than trusting the redirect (see cross-phase architecture above).
+2. Deposit requirement now disclosed *before* checkout — on the service selection card and again on the booking summary, with the action button correctly relabeled ("Continue to payment · [amount]" instead of the misleading "Confirm booking").
+3. Manage page now shows the full paid/due breakdown, not just the total price.
+4. Fixed a price-rounding inconsistency (displayed rounded prices didn't match the actual charged deposit) by having the database compute and return the exact deposit figure rather than letting the UI recompute it — avoiding a second implementation of the same money rule.
+5. Fixed a broken logo image across all public pages (pre-existing, unrelated to Payments, fixed opportunistically) — required a mount-time check rather than a plain `onError` handler, since the image fails before React hydration attaches any handler on a server-rendered page.
+
+**Known untested gap, flagged deliberately rather than glossed over:** the "Confirming your payment…" pending state (for when a client's browser redirect arrives before the async webhook does) has only been exercised in the mock provider's instant-redirect case. This needs deliberate testing against real Dibsy sandbox timing once that's available — it's architecturally correct but genuinely unproven under real async delay.
+
+### Dibsy Swap-In Checklist (for when sandbox access exists)
+
+Honest, specific unknowns flagged during the mock build — confirm each against Dibsy's actual documentation before or during the swap-in, don't assume:
+
+1. **Signature scheme.** Mock uses a Stripe-style `t=<ts>,v1=<hmac>` format over `${ts}.${body}` with a 300s tolerance window. Dibsy's actual header name, canonical string format, and tolerance will differ — confirm against their real webhook docs.
+2. **Idempotency key handling.** Mock generates its own key and expects the provider to honor it. Some gateways ignore client-supplied keys or use their own header/mechanism instead — confirm which applies to Dibsy, and reconcile both if needed.
+3. **Refund timing — likely the highest-risk item.** Mock refunds resolve synchronously. Dibsy refunds are likely asynchronous, meaning the current webhook branch for `refund.succeeded` (treated as informational only) will need to become authoritative instead — the same discipline already applied to charge confirmation.
+4. **Amount units.** Mock uses decimal QAR (`numeric(10,2)`). Confirm whether Dibsy expects minor units (integer) instead — if so, conversion belongs in the adapter layer, not the schema.
+5. **Metadata round-trip.** Mock assumes metadata is echoed back on the webhook. If Dibsy doesn't do this, correlation must rely solely on the provider's own transaction reference — already supported as the primary lookup key, so this is a fallback confirmation, not a blocker.
+6. **`charge.failed` semantics.** Mock deliberately leaves a hold alive on failure so the client can retry within the window — confirm Dibsy doesn't send a terminal failure state that should release the hold immediately instead.
+7. **The untested pending-confirmation UI state** (above) — deliberately test this against real async webhook delay, not just the instant mock case.
+
+### Phase B — In-Salon Checkout (Specced, Not Built)
+
+Do not start until Phase A is verified against real Dibsy.
+
+1. **Channels: QR-code checkout + WhatsApp payment links only.** Physical terminals and Tap to Pay are explicitly out of scope — Dibsy doesn't support them, and staying single-vendor was a deliberate choice over integrating a second provider (e.g. SADAD, Tap Payments) purely for those two channels.
+2. **Manual "Request payment" trigger**, decoupled from marking the appointment "Completed."
+3. **No separate "staff-assisted" code path** — same Dibsy-hosted checkout link/QR regardless of whose device the client uses.
+4. **No expiry on the payment request.** Appointment shows a visible "payment requested — awaiting payment" status instead, feeding a future Reports view of outstanding balances.
+5. **Manual cash/card-elsewhere logging always stays available**, and automatically cancels any outstanding Dibsy request for that appointment when used.
+6. **Requested amount is editable** by staff (tips, add-ons, discounts) with an adjustment note for traceability.
+7. **Fully automatic bookkeeping** — webhook confirmation writes `income_records` directly; `payment_method` enum gains a Dibsy value.
+
+### Phase C — Subscription Billing (Specced, Not Built)
+
+1. **Onboarding stays untouched** — no payment step added. Trial-first; payment details requested later.
+2. **Status tracking automated; enforcement stays manual for now**, deliberately, given the current relationship-driven pilot-salon stage.
+3. **Automatic retry schedule for failed charges** (e.g., day 1/3/7) — validate against Dibsy's native recurring-billing retry handling before building a custom scheme.
+4. **Plan changes are not prorated** — new limits apply immediately, billing catches up at the next renewal.
+5. **New schema needed:** saved payment method reference (tokenized, never raw card data), billing/invoice history, retry-attempt tracking.
 
 ---
 
-### Phase A — Booking Deposits — 🟡 BUILT, verified against a mock provider
+## 10. WhatsApp Automation — Built Except the Send
 
-Deposits collected at the point of self-booking (and optionally in-store for walk-ins), to reduce no-shows.
+### Build status
 
-**Status:** every item below (1–10) is implemented and verified end-to-end against a `MockPaymentProvider`, because Dibsy sandbox access requires a registered business that doesn't exist yet. Nothing about Phase A's internal logic depends on the real provider, so it was built and tested first deliberately.
+Everything below was implemented and verified **except the outbound message itself**, which is blocked by the Twilio account tier rather than by anything in this codebase.
 
-**What "verified against a mock" does and does not mean.** The mock fakes *only the money movement*. It performs real HMAC-SHA256 signing with a replay window, and its developer checkout page posts correctly-signed payloads into the genuine webhook endpoint — so signature verification, idempotency, state transitions, and the audit log are all exercised for real, not stubbed out. What is **not** yet proven is anything specific to Dibsy's actual API shape; see the swap-in checklist below.
+**Working and verified:**
+- Schema: consent columns + timestamps + source on `clients`, `reminded_at` on `appointments`, `whatsapp_templates`, `whatsapp_messages` audit log, brand-level `whatsapp_enabled` and `reminder_lead_hours`.
+- RPCs: consent set/grant, opt-out and opt-in by phone, template resolution, due-reminder query, mark-reminded, message logging. All revoked from `anon`/`authenticated` and granted to `service_role` only, matching the `public_`/`payment_` convention.
+- Consent capture in **both** booking flows (public Self-Booking and staff entry), unchecked by default.
+- Staff opt-out toggle on `/app/clients/:id`, showing both opt-in and opt-out timestamps.
+- Settings UI for reminder lead time — **plus the four booking-window/deposit fields that already existed in the database and were enforced server-side but had no UI at all**, so an Owner could not see or change them. That was a pre-existing gap, unrelated to WhatsApp, found while adding the lead-time control.
+- Inbound webhook with Twilio signature verification (rejects unsigned payloads with 403, verified).
+- Reminder sweep endpoint, shared-secret guarded (rejects without the secret with 403, verified), running end-to-end against the live database.
+- **pg_cron + pg_net installed and both jobs scheduled.**
 
-**Architecture as built:**
-- `PaymentProvider` interface — `createCharge()`, `verifyWebhookSignature()`, `refund()` — in `src/lib/payments/provider.ts`. Adapters normalise their own webhook payloads into a provider-neutral event, so provider-shaped JSON never escapes the adapter boundary.
-- `getPaymentProvider()` in `index.server.ts` is the single switch point, keyed off `PAYMENT_PROVIDER`. An unknown value **throws** rather than falling back to the mock — silently using a fake gateway would mean "paid" bookings that never took money.
-- The database owns every state transition and all money arithmetic; the Node layer owns only provider I/O. Since the DB cannot call a gateway, `public_cancel_by_token` returns a refund *instruction* which the caller executes and then reports back via `payment_record_refund`.
-- The overlap trigger and `public_compute_slots` share a single predicate, `appointment_holds_slot()`. Keeping this in one place is deliberate: two copies drifting apart would mean the trigger rejecting a slot the picker just offered, or a real double-booking.
-- Webhook is mounted directly on the fetch handler in `src/server.ts`, not as a route, because signature verification needs the exact raw request bytes.
+**Blocked — the send step only.** Twilio returns **error 21654, "ContentSid Required"**, for business-initiated WhatsApp messages. Trial accounts cannot create or use approved Content templates, and there is no workaround at that tier — the plain-`Body` fallback only delivers inside an open 24-hour session window, which does not apply to a confirmation or a reminder. **This needs a paid Twilio account plus Meta template approval, not a code change.** The adapter already handles both paths: once a `content_sid` is stored per brand in `whatsapp_templates`, the approved-template path activates with no deploy.
 
-**Four bugs were found by end-to-end testing that code review had not caught** — two of them generalise beyond payments and are now recorded as Section 4 items 7 and 8. The other two were payments-specific: `staff_request_deposit` couldn't resolve a default amount for exactly the walk-in case it existed to serve, and the append-only audit trigger conflicted with `ON DELETE SET NULL` foreign keys such that no appointment with payment history could ever be deleted (the audit log no longer FK-references the mutable rows it describes).
+Consequence worth knowing: every send currently records a `failed` row in `whatsapp_messages` with the 21654 reason. That is the audit log doing its job, not a regression.
 
-1. **Deposit configuration:** Owner sets, per service: whether a deposit applies at all, whether it's a **flat QAR amount or a percentage** of the service price (Owner's choice per service, not fixed to one or the other), and whether it's **mandatory or optional**.
-2. **Targeting beyond service:** deposit rules can also key off **client type** — specifically, automatically requiring a deposit from **new clients** (no completed appointment history yet), the highest-no-show-risk segment, regardless of which service they're booking.
-3. **Optional-and-skipped deposits are visible to staff** — an appointment where the client declined an optional deposit shows a flag/badge (same visual pattern as the existing no-show-count badge), so Receptionists have context without the booking being blocked.
-4. **Deposit counts toward the total.** At checkout, staff log only the *remaining* balance — the Appointment Complete income-logging step needs a small update to reflect deposit-already-collected and compute the remainder.
-5. **Refund policy: time-based.** Owner-configurable notice cutoff (same mental model as the existing booking min-notice setting) — full refund if cancelled before the cutoff, deposit forfeited if cancelled late or as a no-show.
-6. **Refunds are fully automatic** via Dibsy's refund API the moment a qualifying cancellation happens through the existing self-service manage-link flow — no manual approval step, consistent with keeping cancel/reschedule genuinely self-service. Every refund is logged immutably regardless.
-7. **In-store deposit collection is also supported** — staff can manually trigger a deposit request for a walk-in or phone-booked appointment, not just through the public booking flow. Same underlying Dibsy mechanism as the public flow.
-8. **Slot-holding mechanic:** book-first, not payment-first. The appointment row is created immediately with `deposit_status = 'pending'`, and — critically — **this pending row counts against the existing hard DB overlap trigger right away**, giving a real, reliable hold rather than a UI-only one. A short expiry window applies to the hold.
-9. **Expiry handling — check-on-read AND periodic cleanup, not just one:**
-   - `public_compute_slots` (and the overlap trigger) must treat expired-but-still-`pending` rows as if they don't exist, so availability is always instantly correct without depending on any background job having run recently.
-   - A separate periodic cleanup job actually cancels/removes long-expired pending rows, purely for data hygiene (keeping Reports and the Appointments calendar clean of abandoned payment attempts) — nothing else depends on its timing.
-10. **New schema needed:** `deposit_percentage` and/or `deposit_amount` + `deposit_required` (boolean) + a client-type targeting flag on `services`; `deposit_status` enum (`pending`/`paid`/`refunded`/`forfeited`/`expired`) on `appointments`; a payments/transactions table for the actual Dibsy charge + refund records, keyed for idempotency and audit.
+### ⚠ Deferred — must be done when the real send is unblocked
 
----
+**The deposit-path booking confirmation is not emitted from the payment webhook yet.** For a no-deposit booking the confirmation is attempted inline at booking time, but a deposit booking is only `pending` at that moment, so consent is recorded and the message is deliberately deferred (`sendConfirmation: false`). **Nothing currently sends it once the payment succeeds** — the webhook records the payment and stops there. Verified in a browser walkthrough on 2026-08-02: after a completed mock deposit payment, `whatsapp_messages` held zero rows for that appointment. This is invisible today because no send works at all, and it will stay invisible after Twilio is upgraded unless it is explicitly wired — deposit-paying clients would simply never get a confirmation, while everyone else does. **Wire `recordConsentAndConfirm`/`dispatchAppointmentMessage` into the payment webhook's success path at the same time the paid Twilio account lands.** Reminders are unaffected — the sweep picks up these appointments normally.
 
-### Phase A — Dibsy swap-in checklist
+### Deviations from the original spec, and why
 
-Work through this when sandbox access exists. The mock was written against *assumptions* about Dibsy's API; each item below is one of those assumptions, and each is contained within the adapter unless noted. Adding the real provider should be one new file (`dibsy-provider.server.ts`) plus one `case` in `getPaymentProvider()` — if it turns into more than that, something in the abstraction was wrong and is worth fixing rather than working around.
+- **Consent is recorded even when a deposit is required.** The spec didn't distinguish. A deposit booking is only `pending` when the client ticks the box, so consent is stored immediately (they did consent) but the confirmation message is deferred — sending "your booking is confirmed" before the payment cleared would be false. The reminder sweep is unaffected either way, since it queries live status.
+- **Consent grants but never revokes.** An unticked box on a later booking leaves an existing opt-in untouched. Revoking is a deliberate act only: the staff toggle, or replying STOP. Otherwise a client who opted in once would be silently opted out by any subsequent booking where staff forgot to tick.
+- **STOP applies across every brand sharing that phone number.** The person opting out has no concept of our multi-tenant brand separation; honouring it per-brand would keep messaging someone who asked us to stop.
+- **A brand-level `whatsapp_enabled` master switch was added** (not in the original spec). Turning it off stops all messaging for the brand without touching any client's own consent record — the two are genuinely different states and collapsing them would destroy consent evidence.
 
-- [ ] **Signature scheme.** The mock uses a Stripe-style `x-mock-signature: t=<unix>,v1=<hmac-sha256>` computed over `` `${timestamp}.${rawBody}` ``, with a 300-second replay window. Dibsy's header name, canonical string, digest, and tolerance will all differ. Verify against the exact raw bytes — re-serialising parsed JSON changes whitespace/key order and breaks the MAC.
-- [ ] **Idempotency key ownership.** We generate keys and pass them to the provider. Some gateways ignore client-supplied keys, or expect them in a specific header, or mint their own. If Dibsy generates its own, `payment_open_charge` needs to reconcile both identifiers rather than assuming ours is authoritative.
-- [ ] **Refund timing — most likely to need real work.** The mock returns refund success synchronously, so `payment_record_refund` is called inline. Real refunds are usually **asynchronous**: the API returns "accepted" and a webhook confirms later. The `refund.succeeded` / `refund.failed` webhook branches currently only log as informational — they must become authoritative, mirroring how charges already work. Until then a failed async refund would look successful.
-- [ ] **Amount units.** Schema and adapter currently use decimal QAR (`numeric(10,2)`). If Dibsy expects minor units (integer dirhams), convert **inside the adapter** — do not change the schema, or every existing money query has to change with it.
-- [ ] **Metadata round-trip.** We attach `appointment_id` / `brand_id` metadata and assume it comes back on the webhook. If Dibsy doesn't echo metadata, nothing breaks: confirmation already looks up by `provider_ref`, not metadata. Worth confirming rather than discovering.
-- [ ] **`charge.failed` semantics.** We deliberately leave the slot hold alive on failure so the client can retry within the window. Confirm Dibsy has no terminal-failure event that should release the hold immediately instead.
-- [ ] **Checkout URL lifetime.** The mock's checkout URL never expires. If Dibsy's hosted checkout links expire, that interacts with `brands.deposit_hold_minutes` — the link should outlive the hold, not the reverse.
-- [ ] **Set `PAYMENT_PROVIDER=dibsy`** and replace `MOCK_PAYMENT_WEBHOOK_SECRET` with the real signing secret. Keep the mock adapter in the tree: it stays useful for local development and for testing the failure paths a sandbox won't reproduce on demand.
-- [ ] **Re-run the Phase A verification list against the sandbox** before any real card is touched (Section 7, item 6). Passing against the mock proves our logic, not the integration.
+### Original specification
 
----
+**Provider:** **Twilio**, confirmed — consistent with the original implicit reference in Core Decision #11, and chosen for its comparatively mature, well-documented WhatsApp Business Platform integration (a deliberate contrast to the webhook-format guessing flagged as a real risk for Dibsy).
 
-### Phase B — In-Salon Checkout
+**Scope: both booking confirmations and appointment reminders**, built in that sequence within one overall effort — confirmation first (simplest: reuses the same trigger point as the existing SMS OTP delivery, single event, no new scheduling infrastructure needed), reminder second (needs a new periodic scheduled job).
 
-Collecting the remaining balance (or full payment for non-deposit bookings) in-salon, digitally.
+**Consent — explicit opt-in required, not implied:**
+1. A clear opt-in checkbox ("Send me WhatsApp updates about this appointment") required at booking time, in **both** the public Self-Booking flow and internal staff-entry flow. This is a genuine WhatsApp Business Platform policy requirement, not just a UX nicety — unsolicited business-initiated messaging risks the WhatsApp Business number being restricted by Meta, which would break the feature for every brand on the platform at once.
+2. Consent is a **standing preference on the shared `clients` record** (brand-wide, per Core Decision #4), not re-asked at every booking.
+3. Opt-out: mandatory "reply STOP" handling (a genuine Meta platform requirement regardless of any other decision here) flips `clients.whatsapp_opt_in` to false and suppresses future messages, **plus** a staff-facing manual toggle on `/app/clients/:id` for the common real-world case of a client asking to stop in person or by phone rather than texting STOP themselves.
 
-1. **Channels: QR-code checkout + WhatsApp payment links only.** Both are natively supported by Dibsy and reuse 100% of Phase A's payment infrastructure. Physical terminals and Tap to Pay are explicitly out of scope (see gateway constraint above).
-2. **Manual trigger, not automatic.** Staff click a "Request payment" action, separate from marking the appointment "Completed" — decoupling these avoids generating a payment request before the final amount (including any add-ons) is actually settled.
-3. **No separate "staff-assisted" code path.** Whether the client scans on their own phone or staff hands them a shared device, it's the exact same Dibsy-hosted checkout link/QR — no additional logic needed to distinguish these cases.
-4. **No expiry on the payment request itself.** Since there's no slot to protect at this stage (unlike Phase A), the link/QR stays valid indefinitely. Instead, the appointment carries a clearly visible **"payment requested — awaiting payment"** status so outstanding balances don't silently disappear from view. This status should feed into a future Reports view (outstanding balances).
-5. **Manual cash/card-elsewhere logging always stays available**, even with a Dibsy request outstanding — real salon floors need this flexibility. The moment staff manually log the balance as settled another way, the system **automatically cancels/invalidates** any outstanding Dibsy payment request for that same appointment, preventing an accidental double payment later.
-6. **Requested amount is editable by staff** before sending (tips, added retail products, manual discounts) — not strictly locked to the calculated remaining balance. Requires a simple adjustment note/reason attached so Reports stay traceable when the charged amount differs from the base service price.
-7. **Fully automatic bookkeeping.** The moment the webhook confirms an in-salon payment, the system writes the `income_records` row itself (no manual re-entry) — the existing `payment_method` enum gains a new value for Dibsy-collected payments.
+**Reminder timing:** single, Owner-configurable lead time (e.g., "remind clients 24 hours before," pre-filled with 24h as the default), added to the same Settings screen as the existing booking-window and deposit-cutoff settings. Two-reminder support (day-before + same-day) deliberately deferred — worth adding later only once real no-show data shows a single reminder isn't sufficient.
 
----
+**Trigger mechanism — periodic scheduled sweep, not per-appointment timers:**
+- A job runs on a regular interval (e.g., every 15–30 minutes), querying live for `scheduled` appointments falling within the configured reminder window that haven't been reminded yet, sends the message, and marks them as reminded to prevent duplicate sends.
+- **Reuses the same underlying scheduled-job mechanism as the Phase A deposit-hold cleanup job** — build one, and the pattern for the other is already proven.
+- **Race safety (reschedule/cancellation during the reminder window):** handled by querying live `status`/`starts_at` at the moment the job runs, the same "trust a live query over stale state" principle already applied to the appointment overlap trigger and the deposit-hold expiry check. No additional synchronization needed — a cancelled appointment simply won't match the query when the job next runs.
 
-### Phase C — Subscription Billing (Owner → Platform)
-
-Automating what's currently fully manual/offline billing for Owners' own subscriptions.
-
-1. **Onboarding stays untouched.** No payment step added to the existing brand → plan → location wizard. Owners get a trial (existing `subscription_status = 'trial'` state), and are only asked for payment details later — either at trial expiry or whenever they choose to upgrade.
-2. **Status tracking is automated; enforcement stays manual for now, deliberately.** `subscription_status` updates automatically to reflect billing reality (e.g., flips to an expired/failed state when appropriate), giving Platform Admin accurate visibility — but actually cutting off a brand's access remains a human decision made through Platform Admin, not an automatic lockout. This is intentional given the current relationship-driven, small-pilot-salon stage of the business; revisit once there's real confidence in the billing automation itself.
-3. **Failed-charge handling: automatic retry schedule** (e.g., day 1, day 3, day 7 before treating as a genuine failure) — **must be validated against whatever Dibsy's recurring billing product actually offers natively before building a custom retry scheme.** Don't reinvent dunning logic if Dibsy already handles it.
-4. **Plan changes are not prorated.** Upgrading or downgrading mid-cycle applies the new plan's location/staff limits **immediately**, but billing simply catches up at the next normal renewal date — no proration math. Deliberately simple, matching the trust-based way billing has been run manually so far, and avoiding a notoriously bug-prone area of subscription billing systems.
-5. **New schema needed:** a saved payment method reference per brand (tokenized via Dibsy, never storing raw card data), a billing/invoice history table, and fields to track retry attempts and next-retry timestamps on failed charges.
+**New schema needed:** `whatsapp_opt_in` (boolean) + opt-in timestamp on `clients`; a `reminded_at` (or similar) field on `appointments` to prevent duplicate reminder sends; Twilio message template IDs/references for the two message types, pending Meta template approval.
 
 ---
 
