@@ -24,14 +24,17 @@ dist-ssr
 # Local scratch folder holding raw Supabase keys — must never be committed.
 SECRET KEY SB/
 
-# Wrangler / Cloudflare
+# Wrangler / Cloudflare.
+# NOT the deployment target — see vite.config.ts, which pins the Nitro preset
+# to `vercel`. Nothing generates these any more; the rules stay as a guard in
+# case someone builds against the library's cloudflare default.
 .wrangler/
 .dev.vars
 
-# Vercel. Nitro emits .vercel/output when it detects a Vercel build, and the
-# Vercel CLI additionally writes .vercel/project.json containing the project
-# and org IDs — build output and account identifiers, neither of which belongs
-# in the repo.
+# Vercel — the actual deployment target. `npm run build` writes .vercel/output
+# (Build Output API v3), and the Vercel CLI additionally writes
+# .vercel/project.json containing the project and org IDs. Build output and
+# account identifiers, neither of which belongs in the repo.
 .vercel
 
 # Editor directories and files
