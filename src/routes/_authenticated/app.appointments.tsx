@@ -1,6 +1,6 @@
 import { errorMessage } from "@/lib/error-message";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDays,
@@ -68,6 +68,19 @@ type Appointment = {
   status: ApptStatus;
   notes: string | null;
   price: number | null;
+  currency: string;
+  // Booking-time intent only — which package this visit is expected to be
+  // covered by. Nothing is debited until checkout settles it.
+  client_package_id: string | null;
+};
+
+type PackageOffer = {
+  client_package_id: string;
+  package_name: string;
+  remaining_count: number;
+  included_count: number;
+  expires_at: string | null;
+  covers_amount: number;
   currency: string;
 };
 
@@ -531,6 +544,28 @@ function AppointmentDialog({
   const effectivePrice = priceOverride?.price ?? selectedService?.default_price ?? null;
   const currency = priceOverride?.currency ?? selectedService?.currency ?? "QAR";
 
+  // Package detection at booking time (Section 11 item 4 asks for both booking
+  // and checkout). This records intent only — the session is not debited here.
+  // Debiting at booking would burn a session on any appointment later cancelled
+  // or no-showed, and would need a reversal path to undo.
+  const { data: bookOffers = [] } = useQuery({
+    enabled: !!clientId && !!serviceId && !!locationId && !newClientMode,
+    queryKey: ["pkg-offers", clientId, serviceId, locationId],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("client_packages_for_service", {
+        _brand_id: brandId,
+        _client_id: clientId,
+        _service_id: serviceId,
+        _location_id: locationId,
+      });
+      if (error) throw error;
+      return (data ?? []) as PackageOffer[];
+    },
+  });
+
+  const [bookUsePackage, setBookUsePackage] = useState(true);
+  const bookOffer = bookUsePackage ? (bookOffers[0] ?? null) : null;
+
   const { data: schedule } = useQuery({
     queryKey: ["staff-sched", staffId, locationId],
     enabled: !!staffId && !!locationId,
@@ -594,6 +629,9 @@ function AppointmentDialog({
         notes: notes.trim() || null,
         price: effectivePrice,
         currency,
+        // Intent only — checkout pre-selects this and performs the one real
+        // decrement. Nothing is debited by writing it here.
+        client_package_id: bookOffer?.client_package_id ?? null,
       };
       if (edit) {
         const { error } = await supabase.from("appointments").update(payload).eq("id", edit.id);
@@ -689,6 +727,28 @@ function AppointmentDialog({
               </Select>
             </div>
           </div>
+
+          {/* Package detected for this client and service. Nothing is used up
+              now — this only pre-selects the redemption at checkout, so a
+              cancelled booking never costs the client a session. */}
+          {bookOffers.length > 0 && (
+            <div className="flex items-start gap-2 rounded-md border border-border p-3">
+              <Checkbox
+                id="book-pkg"
+                checked={bookUsePackage}
+                onCheckedChange={(v) => setBookUsePackage(v === true)}
+              />
+              <div className="min-w-0">
+                <Label htmlFor="book-pkg" className="text-sm">
+                  Redeem from package ({bookOffers[0].remaining_count} of{" "}
+                  {bookOffers[0].included_count} remaining)
+                </Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {bookOffers[0].package_name} · nothing is used until checkout.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -810,6 +870,40 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
   const [productRows, setProductRows] = useState<ProductUseRow[]>([]);
 
+  // Package redemption — automatic detection with override (Section 11 item 4).
+  // Detection only; the session is debited inside appointment_settle so it can
+  // never be spent on a checkout that then fails to complete.
+  const packagesQuery = useQuery({
+    enabled: !!appt.service_id,
+    queryKey: ["pkg-offers", appt.client_id, appt.service_id, appt.location_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("client_packages_for_service", {
+        _brand_id: appt.brand_id,
+        _client_id: appt.client_id,
+        _service_id: appt.service_id!,
+        _location_id: appt.location_id,
+      });
+      if (error) throw error;
+      return (data ?? []) as PackageOffer[];
+    },
+  });
+
+  // Memoised so the fallback [] keeps a stable identity — otherwise the
+  // default-selection effect below re-runs on every render.
+  const offers = useMemo(() => packagesQuery.data ?? [], [packagesQuery.data]);
+  const [usePackage, setUsePackage] = useState(true);
+  const [packageId, setPackageId] = useState<string | null>(null);
+
+  // Default to the package the booking already intended, else the first offer
+  // (soonest-expiring, ordered by the RPC). Staff can switch it off entirely.
+  useEffect(() => {
+    if (packageId || offers.length === 0) return;
+    const intended = offers.find((o) => o.client_package_id === appt.client_package_id);
+    setPackageId((intended ?? offers[0]).client_package_id);
+  }, [offers, appt.client_package_id, packageId]);
+
+  const activeOffer = usePackage ? offers.find((o) => o.client_package_id === packageId) ?? null : null;
+
   // Gift card redemption. The code is only *checked* here; the actual redeem
   // happens inside appointment_settle so the balance can't be debited for a
   // checkout that then fails to complete.
@@ -862,10 +956,14 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
       }
 
       setGcInfo(row);
-      // Default to whichever is smaller: what's owed, or what's on the card.
+      // Default to whichever is smaller: what's still owed after any package
+      // has been applied, or what's on the card. Defaulting to the full price
+      // would over-apply the card against a visit the package already covered.
       const due = parseFloat(amount);
+      const pkg = activeOffer && Number.isFinite(due) ? Math.min(Number(activeOffer.covers_amount), due) : 0;
+      const owed = Number.isFinite(due) ? Math.max(due - pkg, 0) : NaN;
       const bal = Number(row.remaining_amount);
-      setGcApply(String(Number.isFinite(due) && due > 0 ? Math.min(due, bal) : bal));
+      setGcApply(String(Number.isFinite(owed) && owed > 0 ? Math.min(owed, bal) : bal));
     } catch (e) {
       setGcError(errorMessage(e, "Could not check that code.") ?? "Could not check that code.");
     } finally {
@@ -883,10 +981,18 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
   const giftUsable = !!gcInfo && !gcError;
   const applyNum = parseFloat(gcApply);
   const dueNum = parseFloat(amount);
+
+  // Settlement order mirrors appointment_settle exactly: package first (it
+  // covers a whole service session), then the gift card against what's left,
+  // then money collected today. These figures are for display only — the
+  // database recomputes every one of them from the same source.
+  const packageCovered =
+    activeOffer && Number.isFinite(dueNum) ? Math.min(Number(activeOffer.covers_amount), dueNum) : 0;
+  const afterPackage = Number.isFinite(dueNum) ? Math.max(dueNum - packageCovered, 0) : dueNum;
   const remainderDue =
-    giftUsable && Number.isFinite(applyNum) && Number.isFinite(dueNum)
-      ? Math.max(dueNum - applyNum, 0)
-      : dueNum;
+    giftUsable && Number.isFinite(applyNum) && Number.isFinite(afterPackage)
+      ? Math.max(afterPackage - applyNum, 0)
+      : afterPackage;
 
   const { data: products = [] } = useQuery({
     queryKey: ["products-active", appt.brand_id],
@@ -955,9 +1061,10 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
         if (prErr) throw prErr;
       }
 
-      // Money: gift card redemption, income, and status change happen together
-      // inside one transaction. Doing them as separate client-side writes could
-      // debit a customer's gift card for a checkout that then failed to finish.
+      // Money: package redemption, gift card redemption, income, and the status
+      // change all happen together inside one transaction. Doing them as
+      // separate client-side writes could burn a prepaid session or debit a
+      // gift card for a checkout that then failed to finish.
       const useGift = giftUsable && Number.isFinite(applyNum) && applyNum > 0;
       const { data: settled, error: settleErr } = await supabase.rpc("appointment_settle", {
         _appointment_id: appt.id,
@@ -965,6 +1072,7 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
         _method: method,
         _gift_card_code: useGift ? gcCode.trim() : undefined,
         _gift_card_amount: useGift ? applyNum : undefined,
+        _client_package_id: activeOffer?.client_package_id ?? undefined,
       });
       if (settleErr) throw settleErr;
 
@@ -979,21 +1087,46 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
           forbidden: "You don't have permission to complete this appointment.",
           invalid_amount: "Enter a valid amount.",
           unknown_appointment: "This appointment no longer exists.",
+          already_completed:
+            "This appointment was already completed — nothing was charged again.",
+          package_expired: "That package has expired and can't be redeemed.",
+          package_no_sessions: "That package has no sessions left for this service.",
+          package_refunded: "That package was refunded and can't be redeemed.",
+          package_wrong_client: "That package belongs to a different client.",
+          package_not_found: "That package no longer exists.",
+          package_service_not_covered: "That package doesn't cover this service.",
         };
         throw new Error(map[row?.error ?? ""] ?? row?.error ?? "Could not complete the appointment.");
       }
-      return row as { gift_applied: number | null; gift_remaining: number | null; cash_amount: number | null };
+      return row as {
+        package_covered: number | null;
+        package_remaining: number | null;
+        gift_applied: number | null;
+        gift_remaining: number | null;
+        cash_amount: number | null;
+      };
     },
     onSuccess: (res) => {
       const applied = Number(res?.gift_applied ?? 0);
-      if (applied > 0) {
-        toast.success("Appointment completed", {
-          description: `Gift card covered ${applied.toFixed(2)} ${appt.currency}. Remaining on card: ${Number(res?.gift_remaining ?? 0).toFixed(2)} ${appt.currency}.`,
-        });
-      } else {
-        toast.success("Appointment completed");
+      const covered = Number(res?.package_covered ?? 0);
+      const parts: string[] = [];
+      if (covered > 0) {
+        parts.push(
+          `Package covered ${covered.toFixed(2)} ${appt.currency} · ${Number(res?.package_remaining ?? 0)} session${Number(res?.package_remaining ?? 0) === 1 ? "" : "s"} left.`,
+        );
       }
+      if (applied > 0) {
+        parts.push(
+          `Gift card covered ${applied.toFixed(2)} ${appt.currency}. Remaining on card: ${Number(res?.gift_remaining ?? 0).toFixed(2)} ${appt.currency}.`,
+        );
+      }
+      toast.success("Appointment completed", {
+        description: parts.length > 0 ? parts.join(" ") : undefined,
+      });
       qc.invalidateQueries({ queryKey: ["gift-cards"] });
+      qc.invalidateQueries({ queryKey: ["client-packages"] });
+      qc.invalidateQueries({ queryKey: ["pkg-offers"] });
+      qc.invalidateQueries({ queryKey: ["package-redemptions"] });
       qc.invalidateQueries({ queryKey: ["appts"] });
       qc.invalidateQueries({ queryKey: ["my-appts"] });
       qc.invalidateQueries({ queryKey: ["location-stock"] });
@@ -1070,6 +1203,66 @@ function CompleteDialog({ appt, open, onOpenChange }: { appt: Appointment; open:
               </Select>
             </div>
           </div>
+
+          {/* Package. Detected automatically and switched on by default when
+              the client has sessions left for this service (Section 11 item 4),
+              but always overridable — the client may prefer to pay today and
+              keep the session for later. */}
+          {offers.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="pkg-use"
+                  checked={usePackage}
+                  onCheckedChange={(v) => setUsePackage(v === true)}
+                />
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="pkg-use" className="text-sm">
+                    Redeem from package
+                    {activeOffer
+                      ? ` (${activeOffer.remaining_count} of ${activeOffer.included_count} remaining)`
+                      : ""}
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {activeOffer
+                      ? `${activeOffer.package_name} · covers ${packageCovered.toFixed(2)} ${appt.currency} of this visit`
+                      : "Paying normally — no session will be used."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Only shown when it's a real choice. */}
+              {usePackage && offers.length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Which package</Label>
+                  <Select value={packageId ?? ""} onValueChange={setPackageId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {offers.map((o) => (
+                        <SelectItem key={o.client_package_id} value={o.client_package_id}>
+                          {o.package_name} · {o.remaining_count} of {o.included_count} left
+                          {o.expires_at
+                            ? ` · expires ${format(parseISO(o.expires_at), "d MMM yyyy")}`
+                            : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {usePackage && activeOffer && (
+                <p className="text-xs text-muted-foreground">
+                  Still to pay after the package:{" "}
+                  <span className="font-medium text-foreground">
+                    {Number.isFinite(afterPackage) ? afterPackage.toFixed(2) : "—"} {appt.currency}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Gift card. Partial redemption is the normal case, so this shows
               what the card covers and what is still owed by other means. */}

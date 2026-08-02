@@ -64,6 +64,7 @@ export type Database = {
         Row: {
           brand_id: string
           client_id: string
+          client_package_id: string | null
           created_at: string
           created_by: string | null
           currency: string
@@ -87,6 +88,7 @@ export type Database = {
         Insert: {
           brand_id: string
           client_id: string
+          client_package_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -110,6 +112,7 @@ export type Database = {
         Update: {
           brand_id?: string
           client_id?: string
+          client_package_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -143,6 +146,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_client_package_id_fkey"
+            columns: ["client_package_id"]
+            isOneToOne: false
+            referencedRelation: "client_packages"
             referencedColumns: ["id"]
           },
           {
@@ -308,6 +318,131 @@ export type Database = {
           whatsapp_enabled?: boolean
         }
         Relationships: []
+      }
+      client_package_service_balances: {
+        Row: {
+          client_package_id: string
+          created_at: string
+          id: string
+          included_count: number
+          remaining_count: number
+          service_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_package_id: string
+          created_at?: string
+          id?: string
+          included_count: number
+          remaining_count: number
+          service_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_package_id?: string
+          created_at?: string
+          id?: string
+          included_count?: number
+          remaining_count?: number
+          service_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_package_service_balances_client_package_id_fkey"
+            columns: ["client_package_id"]
+            isOneToOne: false
+            referencedRelation: "client_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_package_service_balances_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_packages: {
+        Row: {
+          brand_id: string
+          client_id: string
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          location_id: string
+          note: string | null
+          package_type_id: string
+          price_paid: number
+          purchased_at: string
+          sold_by: string | null
+          status: Database["public"]["Enums"]["client_package_status"]
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          client_id: string
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          location_id: string
+          note?: string | null
+          package_type_id: string
+          price_paid: number
+          purchased_at?: string
+          sold_by?: string | null
+          status?: Database["public"]["Enums"]["client_package_status"]
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          client_id?: string
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          location_id?: string
+          note?: string | null
+          package_type_id?: string
+          price_paid?: number
+          purchased_at?: string
+          sold_by?: string | null
+          status?: Database["public"]["Enums"]["client_package_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_packages_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_packages_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_packages_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_packages_package_type_id_fkey"
+            columns: ["package_type_id"]
+            isOneToOne: false
+            referencedRelation: "package_types"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clients: {
         Row: {
@@ -500,6 +635,7 @@ export type Database = {
           amount: number
           appointment_id: string | null
           brand_id: string
+          client_package_id: string | null
           collected_at: string
           collected_by: string | null
           created_at: string
@@ -514,6 +650,7 @@ export type Database = {
           amount: number
           appointment_id?: string | null
           brand_id: string
+          client_package_id?: string | null
           collected_at?: string
           collected_by?: string | null
           created_at?: string
@@ -528,6 +665,7 @@ export type Database = {
           amount?: number
           appointment_id?: string | null
           brand_id?: string
+          client_package_id?: string | null
           collected_at?: string
           collected_by?: string | null
           created_at?: string
@@ -551,6 +689,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "income_records_client_package_id_fkey"
+            columns: ["client_package_id"]
+            isOneToOne: false
+            referencedRelation: "client_packages"
             referencedColumns: ["id"]
           },
           {
@@ -651,6 +796,146 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "locations_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_redemptions: {
+        Row: {
+          appointment_id: string | null
+          brand_id: string
+          client_id: string | null
+          client_package_id: string
+          covered_amount: number
+          created_at: string
+          currency: string
+          id: string
+          redeemed_by: string | null
+          service_id: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          brand_id: string
+          client_id?: string | null
+          client_package_id: string
+          covered_amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          redeemed_by?: string | null
+          service_id?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          brand_id?: string
+          client_id?: string | null
+          client_package_id?: string
+          covered_amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          redeemed_by?: string | null
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_redemptions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "package_redemptions_client_package_id_fkey"
+            columns: ["client_package_id"]
+            isOneToOne: false
+            referencedRelation: "client_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_services: {
+        Row: {
+          created_at: string
+          id: string
+          included_count: number
+          package_type_id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          included_count: number
+          package_type_id: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          included_count?: number
+          package_type_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_services_package_type_id_fkey"
+            columns: ["package_type_id"]
+            isOneToOne: false
+            referencedRelation: "package_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "package_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_types: {
+        Row: {
+          brand_id: string
+          created_at: string
+          currency: string
+          description: string | null
+          expiry_months: number | null
+          id: string
+          name: string
+          price: number
+          status: Database["public"]["Enums"]["package_type_status"]
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          expiry_months?: number | null
+          id?: string
+          name: string
+          price: number
+          status?: Database["public"]["Enums"]["package_type_status"]
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          expiry_months?: number | null
+          id?: string
+          name?: string
+          price?: number
+          status?: Database["public"]["Enums"]["package_type_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_types_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
@@ -1374,6 +1659,7 @@ export type Database = {
         Args: {
           _amount: number
           _appointment_id: string
+          _client_package_id?: string
           _gift_card_amount?: number
           _gift_card_code?: string
           _method: Database["public"]["Enums"]["payment_method"]
@@ -1383,6 +1669,8 @@ export type Database = {
           error: string
           gift_applied: number
           gift_remaining: number
+          package_covered: number
+          package_remaining: number
         }[]
       }
       can_manage_location: {
@@ -1406,6 +1694,39 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      client_packages_for_service: {
+        Args: {
+          _brand_id: string
+          _client_id: string
+          _location_id?: string
+          _service_id: string
+        }
+        Returns: {
+          client_package_id: string
+          covers_amount: number
+          currency: string
+          expires_at: string
+          included_count: number
+          package_name: string
+          remaining_count: number
+        }[]
+      }
+      client_packages_overview: {
+        Args: { _brand_id: string; _client_id: string }
+        Returns: {
+          client_package_id: string
+          currency: string
+          effective_status: string
+          expires_at: string
+          package_name: string
+          price_paid: number
+          purchased_at: string
+          services: Json
+          status: string
+          total_included: number
+          total_remaining: number
+        }[]
       }
       create_brand_with_owner_location: {
         Args: {
@@ -1517,6 +1838,68 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      package_extend_expiry: {
+        Args: { _client_package_id: string; _new_expires_at: string }
+        Returns: {
+          error: string
+          expires_at: string
+        }[]
+      }
+      package_redeem: {
+        Args: {
+          _appointment_id: string
+          _brand_id: string
+          _client_id: string
+          _client_package_id: string
+          _location_id: string
+          _service_id: string
+        }
+        Returns: {
+          covered: number
+          error: string
+          remaining: number
+        }[]
+      }
+      package_refund: {
+        Args: {
+          _client_package_id: string
+          _method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: {
+          error: string
+          refunded_amount: number
+        }[]
+      }
+      package_sell: {
+        Args: {
+          _brand_id: string
+          _client_id: string
+          _location_id: string
+          _method: Database["public"]["Enums"]["payment_method"]
+          _note?: string
+          _package_type_id: string
+        }
+        Returns: {
+          client_package_id: string
+          error: string
+          expires_at: string
+        }[]
+      }
+      packages_expired_with_balance: {
+        Args: { _brand_id: string }
+        Returns: {
+          client_id: string
+          client_name: string
+          client_package_id: string
+          currency: string
+          expires_at: string
+          location_name: string
+          package_name: string
+          price_paid: number
+          total_included: number
+          total_remaining: number
+        }[]
+      }
       payment_confirm_charge: {
         Args: {
           _amount: number
@@ -1753,6 +2136,10 @@ export type Database = {
         Args: { _brand_id: string; _code: string; _phone: string }
         Returns: boolean
       }
+      service_effective_price: {
+        Args: { _location_id: string; _service_id: string }
+        Returns: number
+      }
       staff_request_deposit: {
         Args: { _amount?: number; _appointment_id: string }
         Returns: {
@@ -1839,6 +2226,7 @@ export type Database = {
       app_role: "owner" | "manager" | "receptionist" | "staff"
       appointment_status: "scheduled" | "completed" | "cancelled" | "no_show"
       billing_cycle: "monthly" | "yearly"
+      client_package_status: "active" | "expired" | "refunded"
       consent_source:
         | "public_booking"
         | "staff_booking"
@@ -1846,6 +2234,7 @@ export type Database = {
         | "inbound_stop"
       deposit_status: "pending" | "paid" | "refunded" | "forfeited" | "expired"
       gift_card_status: "active" | "expired" | "redeemed" | "refunded"
+      package_type_status: "active" | "inactive"
       payment_kind: "charge" | "refund"
       payment_method: "cash" | "card" | "bank_transfer"
       payment_state: "pending" | "succeeded" | "failed" | "cancelled"
@@ -1985,6 +2374,7 @@ export const Constants = {
       app_role: ["owner", "manager", "receptionist", "staff"],
       appointment_status: ["scheduled", "completed", "cancelled", "no_show"],
       billing_cycle: ["monthly", "yearly"],
+      client_package_status: ["active", "expired", "refunded"],
       consent_source: [
         "public_booking",
         "staff_booking",
@@ -1993,6 +2383,7 @@ export const Constants = {
       ],
       deposit_status: ["pending", "paid", "refunded", "forfeited", "expired"],
       gift_card_status: ["active", "expired", "redeemed", "refunded"],
+      package_type_status: ["active", "inactive"],
       payment_kind: ["charge", "refund"],
       payment_method: ["cash", "card", "bank_transfer"],
       payment_state: ["pending", "succeeded", "failed", "cancelled"],

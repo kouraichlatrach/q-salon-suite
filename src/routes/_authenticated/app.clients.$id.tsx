@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Mail, MessageCircle, Phone, Pencil, Save, X } from "lucide-react";
+import { ArrowLeft, Boxes, Mail, MessageCircle, Phone, Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,20 @@ export const Route = createFileRoute("/_authenticated/app/clients/$id")({
   }),
   component: ClientDetailPage,
 });
+
+type ClientPackageOverview = {
+  client_package_id: string;
+  package_name: string;
+  purchased_at: string;
+  expires_at: string | null;
+  status: string;
+  // Derived live by the database from expires_at and remaining sessions, not
+  // read from the stored status column.
+  effective_status: string;
+  total_remaining: number;
+  total_included: number;
+  services: { service_id: string; service_name: string; remaining: number; included: number }[];
+};
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: "Scheduled",
@@ -78,6 +92,21 @@ function ClientDetailPage() {
       return data;
     },
   });
+
+  const packagesQuery = useQuery({
+    enabled: !!id && !!clientQuery.data?.brand_id,
+    queryKey: ["client-packages-overview", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("client_packages_overview", {
+        _brand_id: clientQuery.data!.brand_id,
+        _client_id: id,
+      });
+      if (error) throw error;
+      // `services` arrives as jsonb, which the generated types widen to Json.
+      return (data ?? []) as unknown as ClientPackageOverview[];
+    },
+  });
+  const packages = packagesQuery.data ?? [];
 
   const historyQuery = useQuery({
     enabled: !!id,
@@ -203,6 +232,62 @@ function ClientDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Packages this client holds. Section 11 item 3 asks for a
+            staff-visible flag on the profile, including the expired-with-
+            sessions-left case — nothing happens to those automatically, so
+            somebody has to be able to see them. */}
+        {packages.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="font-display text-lg flex items-center gap-2">
+                <Boxes className="h-4 w-4" /> Packages
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {packages.map((p) => (
+                <div
+                  key={p.client_package_id}
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border p-3"
+                >
+                  <div className="min-w-0 text-sm">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{p.package_name}</p>
+                      {p.effective_status === "active" && (
+                        <Badge variant="secondary">
+                          {p.total_remaining} of {p.total_included} left
+                        </Badge>
+                      )}
+                      {p.effective_status === "expired" && p.total_remaining > 0 && (
+                        <Badge className="border-transparent bg-amber-100 text-amber-900 hover:bg-amber-100">
+                          Expired · {p.total_remaining} unused
+                        </Badge>
+                      )}
+                      {p.effective_status === "expired" && p.total_remaining <= 0 && (
+                        <Badge variant="outline">Expired</Badge>
+                      )}
+                      {p.effective_status === "used" && <Badge variant="outline">Fully used</Badge>}
+                      {p.effective_status === "refunded" && (
+                        <Badge variant="outline">Refunded</Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {(p.services ?? [])
+                        .map((s) => `${s.service_name} ${s.remaining}/${s.included}`)
+                        .join(" · ")}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Bought {format(parseISO(p.purchased_at), "d MMM yyyy")}
+                      {p.expires_at
+                        ? ` · ${new Date(p.expires_at) <= new Date() ? "expired" : "expires"} ${format(parseISO(p.expires_at), "d MMM yyyy")}`
+                        : " · no expiry"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Staff-facing consent control. Section 10 item 3: STOP handles the
             client who texts in, but the common real-world case is someone
