@@ -10,6 +10,7 @@ import { AppShell } from "@/components/app-shell";
 import { errorMessage } from "@/lib/error-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,7 +68,7 @@ function SettingsContent() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brands")
-        .select("id, name, plan, subscription_status, renewal_date, billing_cycle")
+        .select("id, name, plan, subscription_status, renewal_date, billing_cycle, min_notice_hours, max_advance_days, deposit_hold_minutes, refund_cutoff_hours, reminder_lead_hours, whatsapp_enabled")
         .eq("id", brandId)
         .single();
       if (error) throw error;
@@ -78,9 +79,66 @@ function SettingsContent() {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Booking-window and messaging settings. All four of the first group already
+  // existed in the database and were enforced server-side, but had no UI at
+  // all — an Owner could not see or change them.
+  const [minNotice, setMinNotice] = useState("3");
+  const [maxAdvance, setMaxAdvance] = useState("30");
+  const [holdMinutes, setHoldMinutes] = useState("15");
+  const [refundCutoff, setRefundCutoff] = useState("24");
+  const [reminderLead, setReminderLead] = useState("24");
+  const [waEnabled, setWaEnabled] = useState(true);
+  const [savingOps, setSavingOps] = useState(false);
+
   useEffect(() => {
-    if (brand) setName(brand.name);
+    if (!brand) return;
+    setName(brand.name);
+    setMinNotice(String(brand.min_notice_hours ?? 3));
+    setMaxAdvance(String(brand.max_advance_days ?? 30));
+    setHoldMinutes(String(brand.deposit_hold_minutes ?? 15));
+    setRefundCutoff(String(brand.refund_cutoff_hours ?? 24));
+    setReminderLead(String(brand.reminder_lead_hours ?? 24));
+    setWaEnabled(brand.whatsapp_enabled ?? true);
   }, [brand]);
+
+  async function saveOps() {
+    // Mirror the database CHECK constraints so a bad value is rejected here
+    // with a useful message rather than as a raw Postgres error.
+    const rules: Array<[string, number, number, number]> = [
+      ["Minimum notice", Number(minNotice), 0, 720],
+      ["Maximum advance", Number(maxAdvance), 1, 365],
+      ["Deposit hold", Number(holdMinutes), 1, 1440],
+      ["Refund cutoff", Number(refundCutoff), 0, 720],
+      ["Reminder lead time", Number(reminderLead), 1, 168],
+    ];
+    for (const [label, value, lo, hi] of rules) {
+      if (!Number.isFinite(value) || !Number.isInteger(value) || value < lo || value > hi) {
+        toast.error(`${label} must be a whole number between ${lo} and ${hi}.`);
+        return;
+      }
+    }
+    setSavingOps(true);
+    try {
+      const { error } = await supabase
+        .from("brands")
+        .update({
+          min_notice_hours: Number(minNotice),
+          max_advance_days: Number(maxAdvance),
+          deposit_hold_minutes: Number(holdMinutes),
+          refund_cutoff_hours: Number(refundCutoff),
+          reminder_lead_hours: Number(reminderLead),
+          whatsapp_enabled: waEnabled,
+        })
+        .eq("id", brandId);
+      if (error) throw error;
+      toast.success("Booking settings saved");
+      queryClient.invalidateQueries({ queryKey: ["brand-settings", brandId] });
+    } catch (err) {
+      toast.error("Could not save", { description: errorMessage(err, "Please try again.") });
+    } finally {
+      setSavingOps(false);
+    }
+  }
 
   async function save() {
     const trimmed = name.trim();
@@ -146,6 +204,74 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="font-display">Booking &amp; messaging</CardTitle>
+          <CardDescription>
+            Controls the public booking window, deposit handling, and WhatsApp reminders.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <NumberSetting
+                  id="set-min-notice" label="Minimum notice (hours)"
+                  hint="How soon before a slot clients can still book it."
+                  value={minNotice} onChange={setMinNotice}
+                />
+                <NumberSetting
+                  id="set-max-advance" label="Maximum advance (days)"
+                  hint="How far ahead the booking calendar goes."
+                  value={maxAdvance} onChange={setMaxAdvance}
+                />
+                <NumberSetting
+                  id="set-hold" label="Deposit hold (minutes)"
+                  hint="How long a slot is held while a deposit is unpaid."
+                  value={holdMinutes} onChange={setHoldMinutes}
+                />
+                <NumberSetting
+                  id="set-refund" label="Refund cutoff (hours)"
+                  hint="Cancel earlier than this for a full deposit refund."
+                  value={refundCutoff} onChange={setRefundCutoff}
+                />
+                <NumberSetting
+                  id="set-reminder" label="Reminder lead time (hours)"
+                  hint="How long before the appointment the WhatsApp reminder is sent."
+                  value={reminderLead} onChange={setReminderLead}
+                />
+              </div>
+
+              <label
+                htmlFor="set-wa-enabled"
+                className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3"
+              >
+                <Checkbox
+                  id="set-wa-enabled"
+                  checked={waEnabled}
+                  onCheckedChange={(v) => setWaEnabled(v === true)}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  <span className="font-medium">Send WhatsApp updates</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Master switch. Turning this off stops all confirmations and reminders
+                    for this brand, without changing any client's own consent.
+                  </span>
+                </span>
+              </label>
+            </>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={saveOps} disabled={savingOps || isLoading}>
+              {savingOps ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="font-display">Subscription</CardTitle>
@@ -193,6 +319,27 @@ function SettingsContent() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Small labelled numeric field, shared by the booking settings grid. */
+function NumberSetting({
+  id, label, hint, value, onChange,
+}: {
+  id: string; label: string; hint: string; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { renderErrorPage } from "./lib/error-page";
 // Path constant only — the handler itself is imported lazily so the payments
 // module (and its Node crypto usage) stays out of the normal SSR path.
 import { PAYMENT_WEBHOOK_PATH } from "./lib/payments/webhook-path";
+import { WHATSAPP_WEBHOOK_PATH } from "./lib/whatsapp/webhook-path";
+import { JOBS_REMINDER_PATH } from "./lib/whatsapp/jobs-path";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -57,6 +59,22 @@ export default {
       if (url.pathname === PAYMENT_WEBHOOK_PATH) {
         const { handlePaymentWebhook } = await import("./lib/payments/webhook.server");
         return await handlePaymentWebhook(request);
+      }
+
+      // Inbound WhatsApp (STOP/START). Same reasoning as the payment webhook:
+      // Twilio signs over the raw form body, so it must not be parsed upstream.
+      if (url.pathname === WHATSAPP_WEBHOOK_PATH) {
+        const { handleWhatsAppWebhook } = await import("./lib/whatsapp/webhook.server");
+        return await handleWhatsAppWebhook(request);
+      }
+
+      // Scheduled reminder sweep, invoked by pg_cron via pg_net. Secret-guarded
+      // because it triggers outbound messaging.
+      if (url.pathname === JOBS_REMINDER_PATH) {
+        const { handleReminderJobRequest } = await import(
+          "./lib/whatsapp/reminder-job.server"
+        );
+        return await handleReminderJobRequest(request);
       }
 
       const handler = await getServerEntry();

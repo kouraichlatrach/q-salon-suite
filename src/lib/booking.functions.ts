@@ -230,6 +230,7 @@ export const confirmBooking = createServerFn({ method: "POST" })
       notes?: string | null;
       depositSkipped?: boolean;
       brandSlug: string;
+      whatsappOptIn?: boolean;
     }) =>
       z
         .object({
@@ -247,6 +248,9 @@ export const confirmBooking = createServerFn({ method: "POST" })
           depositSkipped: z.boolean().optional(),
           // Needed to build the post-payment confirmation URL.
           brandSlug: z.string().min(1).max(200),
+          // Explicit WhatsApp consent. Unchecked by default in the UI; this
+          // only ever grants, never revokes (see whatsapp_consent_from_booking).
+          whatsappOptIn: z.boolean().optional(),
         })
         .parse(d),
   )
@@ -314,6 +318,20 @@ export const confirmBooking = createServerFn({ method: "POST" })
         return { ok: false as const, error: "deposit_charge_failed" };
       }
 
+      // Record consent before handing off to checkout — the client ticked the
+      // box here, and if they abandon payment we still hold a valid standing
+      // preference. The confirmation message itself waits for the webhook,
+      // because the booking isn't actually confirmed yet.
+      const { recordConsentAndConfirm } = await import("./whatsapp/messaging.server");
+      await recordConsentAndConfirm({
+        appointmentId: row.appointment_id!,
+        brandId: data.brandId,
+        token,
+        optIn: data.whatsappOptIn ?? false,
+        source: "public_booking",
+        sendConfirmation: false,
+      });
+
       return {
         ok: true as const,
         appointmentId: row.appointment_id!,
@@ -341,6 +359,18 @@ export const confirmBooking = createServerFn({ method: "POST" })
       when,
       manageUrl,
       smsSender: (brandRow as { sms_sender?: string | null } | null)?.sms_sender ?? null,
+    });
+
+    // No deposit: the appointment is confirmed right now, so consent and the
+    // confirmation message are both handled here. Never throws — a messaging
+    // failure must not turn a successful booking into an error.
+    const { recordConsentAndConfirm } = await import("./whatsapp/messaging.server");
+    await recordConsentAndConfirm({
+      appointmentId: row.appointment_id!,
+      brandId: data.brandId,
+      token,
+      optIn: data.whatsappOptIn ?? false,
+      source: "public_booking",
     });
 
     return {
