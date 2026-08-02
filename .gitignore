@@ -44,7 +44,15 @@ SECRET KEY SB/
 supabase/.temp/
 
 # Local Claude Code agent config (launch config, settings) — machine-specific.
-.claude/
+# `.claude/*` rather than `.claude/`: git never descends into an ignored
+# directory, so a `!` negation below would be silently dead if the directory
+# itself were excluded.
+.claude/*
+
+# Skills are shared project config — they encode how work gets done here, so
+# every developer should get the same ones. Everything else under .claude/
+# stays local.
+!.claude/skills/
 
 # This repo uses bun (bun.lock). A stray npm lockfile would compete as the
 # source of truth for dependency resolution.
