@@ -11,6 +11,7 @@ import {
   Sparkles,
   ShieldCheck,
   Inbox,
+  Gift,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +29,7 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Services", to: "/app/services", icon: Sparkles },
+    { label: "Gift cards", to: "/app/gift-cards", icon: Gift },
     { label: "Stock", to: "/app/stock", icon: Package },
     { label: "Locations", to: "/app/locations", icon: MapPin },
     { label: "Staff", to: "/app/staff", icon: Users },
@@ -39,6 +41,7 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
     { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
     { label: "Services", to: "/app/services", icon: Sparkles },
+    { label: "Gift cards", to: "/app/gift-cards", icon: Gift },
     { label: "Stock", to: "/app/stock", icon: Package },
     { label: "Staff", to: "/app/staff", icon: Users },
     { label: "Reports", to: "/app/reports", icon: TrendingUp },
@@ -46,6 +49,7 @@ const NAV_BY_ROLE: Record<AppRole, NavItem[]> = {
   receptionist: [
     { label: "Appointments", to: "/app/appointments", icon: CalendarClock },
     { label: "Clients", to: "/app/clients", icon: Users },
+    { label: "Gift cards", to: "/app/gift-cards", icon: Gift },
     { label: "Stock", to: "/app/stock", icon: Package },
   ],
   staff: [

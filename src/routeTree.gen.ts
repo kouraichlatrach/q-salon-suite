@@ -21,6 +21,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAppointmentsRouteImport } from './routes/_authenticated/app.appointments'
 import { Route as AuthenticatedAppClientsRouteImport } from './routes/_authenticated/app.clients'
+import { Route as AuthenticatedAppGiftCardsRouteImport } from './routes/_authenticated/app.gift-cards'
 import { Route as AuthenticatedAppLocationsRouteImport } from './routes/_authenticated/app.locations'
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenticated/app.services'
@@ -93,6 +94,12 @@ const AuthenticatedAppClientsRoute = AuthenticatedAppClientsRouteImport.update({
   path: '/clients',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppGiftCardsRoute =
+  AuthenticatedAppGiftCardsRouteImport.update({
+    id: '/gift-cards',
+    path: '/gift-cards',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppLocationsRoute =
   AuthenticatedAppLocationsRouteImport.update({
     id: '/locations',
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/manage/$token': typeof ManageTokenRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
+  '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/app/locations': typeof AuthenticatedAppLocationsRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/services': typeof AuthenticatedAppServicesRoute
@@ -187,6 +195,7 @@ export interface FileRoutesByTo {
   '/manage/$token': typeof ManageTokenRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
+  '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/app/locations': typeof AuthenticatedAppLocationsRoute
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/services': typeof AuthenticatedAppServicesRoute
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/manage/$token': typeof ManageTokenRoute
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
+  '/_authenticated/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
   '/_authenticated/app/locations': typeof AuthenticatedAppLocationsRoute
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/services': typeof AuthenticatedAppServicesRoute
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/manage/$token'
     | '/app/appointments'
     | '/app/clients'
+    | '/app/gift-cards'
     | '/app/locations'
     | '/app/reports'
     | '/app/services'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/manage/$token'
     | '/app/appointments'
     | '/app/clients'
+    | '/app/gift-cards'
     | '/app/locations'
     | '/app/reports'
     | '/app/services'
@@ -286,6 +298,7 @@ export interface FileRouteTypes {
     | '/manage/$token'
     | '/_authenticated/app/appointments'
     | '/_authenticated/app/clients'
+    | '/_authenticated/app/gift-cards'
     | '/_authenticated/app/locations'
     | '/_authenticated/app/reports'
     | '/_authenticated/app/services'
@@ -394,6 +407,13 @@ declare module '@tanstack/react-router' {
       path: '/clients'
       fullPath: '/app/clients'
       preLoaderRoute: typeof AuthenticatedAppClientsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/gift-cards': {
+      id: '/_authenticated/app/gift-cards'
+      path: '/gift-cards'
+      fullPath: '/app/gift-cards'
+      preLoaderRoute: typeof AuthenticatedAppGiftCardsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/locations': {
@@ -519,6 +539,7 @@ const AuthenticatedAppStaffRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAppointmentsRoute: typeof AuthenticatedAppAppointmentsRoute
   AuthenticatedAppClientsRoute: typeof AuthenticatedAppClientsRouteWithChildren
+  AuthenticatedAppGiftCardsRoute: typeof AuthenticatedAppGiftCardsRoute
   AuthenticatedAppLocationsRoute: typeof AuthenticatedAppLocationsRoute
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppServicesRoute: typeof AuthenticatedAppServicesRoute
@@ -531,6 +552,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAppointmentsRoute: AuthenticatedAppAppointmentsRoute,
   AuthenticatedAppClientsRoute: AuthenticatedAppClientsRouteWithChildren,
+  AuthenticatedAppGiftCardsRoute: AuthenticatedAppGiftCardsRoute,
   AuthenticatedAppLocationsRoute: AuthenticatedAppLocationsRoute,
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppServicesRoute: AuthenticatedAppServicesRoute,

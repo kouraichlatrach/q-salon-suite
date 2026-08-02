@@ -237,6 +237,9 @@ export type Database = {
           created_at: string
           currency: string
           deposit_hold_minutes: number
+          gift_card_denominations: number[]
+          gift_card_expiry_enabled: boolean
+          gift_card_expiry_months: number
           id: string
           max_advance_days: number
           max_locations: number
@@ -259,6 +262,9 @@ export type Database = {
           created_at?: string
           currency?: string
           deposit_hold_minutes?: number
+          gift_card_denominations?: number[]
+          gift_card_expiry_enabled?: boolean
+          gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
           max_locations?: number
@@ -281,6 +287,9 @@ export type Database = {
           created_at?: string
           currency?: string
           deposit_hold_minutes?: number
+          gift_card_denominations?: number[]
+          gift_card_expiry_enabled?: boolean
+          gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
           max_locations?: number
@@ -362,42 +371,172 @@ export type Database = {
           },
         ]
       }
+      gift_card_redemptions: {
+        Row: {
+          amount: number
+          appointment_id: string | null
+          brand_id: string
+          client_id: string | null
+          created_at: string
+          currency: string
+          gift_card_id: string
+          id: string
+          redeemed_by: string | null
+        }
+        Insert: {
+          amount: number
+          appointment_id?: string | null
+          brand_id: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string
+          gift_card_id: string
+          id?: string
+          redeemed_by?: string | null
+        }
+        Update: {
+          amount?: number
+          appointment_id?: string | null
+          brand_id?: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string
+          gift_card_id?: string
+          id?: string
+          redeemed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_card_redemptions_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_card_redemptions_gift_card_id_fkey"
+            columns: ["gift_card_id"]
+            isOneToOne: false
+            referencedRelation: "gift_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_cards: {
+        Row: {
+          brand_id: string
+          client_id: string | null
+          code: string
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          initial_amount: number
+          location_id: string
+          note: string | null
+          remaining_amount: number
+          sold_by: string | null
+          status: Database["public"]["Enums"]["gift_card_status"]
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          client_id?: string | null
+          code: string
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          initial_amount: number
+          location_id: string
+          note?: string | null
+          remaining_amount: number
+          sold_by?: string | null
+          status?: Database["public"]["Enums"]["gift_card_status"]
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          client_id?: string | null
+          code?: string
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          initial_amount?: number
+          location_id?: string
+          note?: string | null
+          remaining_amount?: number
+          sold_by?: string | null
+          status?: Database["public"]["Enums"]["gift_card_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_cards_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_cards_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_cards_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       income_records: {
         Row: {
           amount: number
-          appointment_id: string
+          appointment_id: string | null
           brand_id: string
           collected_at: string
           collected_by: string | null
           created_at: string
           currency: string
+          gift_card_id: string | null
           id: string
           location_id: string
           method: Database["public"]["Enums"]["payment_method"]
+          source: string
         }
         Insert: {
           amount: number
-          appointment_id: string
+          appointment_id?: string | null
           brand_id: string
           collected_at?: string
           collected_by?: string | null
           created_at?: string
           currency?: string
+          gift_card_id?: string | null
           id?: string
           location_id: string
           method: Database["public"]["Enums"]["payment_method"]
+          source?: string
         }
         Update: {
           amount?: number
-          appointment_id?: string
+          appointment_id?: string | null
           brand_id?: string
           collected_at?: string
           collected_by?: string | null
           created_at?: string
           currency?: string
+          gift_card_id?: string | null
           id?: string
           location_id?: string
           method?: Database["public"]["Enums"]["payment_method"]
+          source?: string
         }
         Relationships: [
           {
@@ -412,6 +551,13 @@ export type Database = {
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "income_records_gift_card_id_fkey"
+            columns: ["gift_card_id"]
+            isOneToOne: false
+            referencedRelation: "gift_cards"
             referencedColumns: ["id"]
           },
           {
@@ -1224,6 +1370,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      appointment_settle: {
+        Args: {
+          _amount: number
+          _appointment_id: string
+          _gift_card_amount?: number
+          _gift_card_code?: string
+          _method: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: {
+          cash_amount: number
+          error: string
+          gift_applied: number
+          gift_remaining: number
+        }[]
+      }
       can_manage_location: {
         Args: { _location_id: string; _user_id: string }
         Returns: boolean
@@ -1270,6 +1431,68 @@ export type Database = {
         }[]
       }
       get_user_brand: { Args: { _user_id: string }; Returns: string }
+      gift_card_generate_code: { Args: never; Returns: string }
+      gift_card_lookup: {
+        Args: { _brand_id: string; _code: string }
+        Returns: {
+          client_id: string
+          code: string
+          currency: string
+          effective_status: string
+          error: string
+          expires_at: string
+          id: string
+          initial_amount: number
+          remaining_amount: number
+          status: string
+        }[]
+      }
+      gift_card_normalize_code: { Args: { _code: string }; Returns: string }
+      gift_card_redeem: {
+        Args: {
+          _amount: number
+          _appointment_id: string
+          _brand_id: string
+          _client_id: string
+          _code: string
+        }
+        Returns: {
+          applied: number
+          error: string
+          gift_card_id: string
+          remaining: number
+        }[]
+      }
+      gift_card_sell: {
+        Args: {
+          _amount: number
+          _brand_id: string
+          _location_id: string
+          _method: Database["public"]["Enums"]["payment_method"]
+          _note?: string
+        }
+        Returns: {
+          code: string
+          error: string
+          expires_at: string
+          gift_card_id: string
+        }[]
+      }
+      gift_cards_expired_with_balance: {
+        Args: { _brand_id: string }
+        Returns: {
+          client_id: string
+          client_name: string
+          code: string
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          initial_amount: number
+          location_name: string
+          remaining_amount: number
+        }[]
+      }
       has_location_access: {
         Args: { _location_id: string; _user_id: string }
         Returns: boolean
@@ -1622,6 +1845,7 @@ export type Database = {
         | "staff_manual"
         | "inbound_stop"
       deposit_status: "pending" | "paid" | "refunded" | "forfeited" | "expired"
+      gift_card_status: "active" | "expired" | "redeemed" | "refunded"
       payment_kind: "charge" | "refund"
       payment_method: "cash" | "card" | "bank_transfer"
       payment_state: "pending" | "succeeded" | "failed" | "cancelled"
@@ -1768,6 +1992,7 @@ export const Constants = {
         "inbound_stop",
       ],
       deposit_status: ["pending", "paid", "refunded", "forfeited", "expired"],
+      gift_card_status: ["active", "expired", "redeemed", "refunded"],
       payment_kind: ["charge", "refund"],
       payment_method: ["cash", "card", "bank_transfer"],
       payment_state: ["pending", "succeeded", "failed", "cancelled"],
