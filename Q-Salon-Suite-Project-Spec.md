@@ -53,6 +53,9 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 | 11 | Payments — Phase B (In-Salon Checkout) | 📋 Specced, not built. Do not start until Phase A is running against real Dibsy, not the mock provider. |
 | 12 | Payments — Phase C (Subscription Billing) | 📋 Specced, not built. |
 | 13 | **WhatsApp Automation** | 🟡 **Built except the send itself.** Consent capture, opt-out, scheduling, and audit logging are all done and working. The actual outbound message is blocked by the Twilio **trial account** (error 21654 — see Section 10). |
+| 14 | **Packages (client-facing)** | 📋 **Fully specced, not built.** No dependency on Payments Phase B/C — buildable now. See Section 11. |
+| 15 | **Gift Cards** | 📋 **Fully specced, not built.** No dependency on Payments Phase B/C — buildable now. See Section 11. |
+| 16 | **Memberships** | 📋 **Fully specced, not built.** Depends on Payments Phase C's recurring-billing mechanics (retry schedule, no-proration model) — do not start until Phase C is built and proven, since Memberships is specced to directly reuse that machinery rather than re-solve it. See Section 11. |
 
 ---
 
@@ -119,7 +122,7 @@ In priority order:
 1. ~~Self-Booking~~ — ✅ done (Section 5)
 2. **Payments** — Phase A ✅ built against mock provider (Section 9); real Dibsy swap-in pending business registration/sandbox access. Phases B and C specced, not started — do not begin Phase B until Phase A is verified against real Dibsy.
 3. **WhatsApp Automation** — 🟡 built except the send (Section 10); unblocking needs a paid Twilio account, not more code. Note the scheduled-job infrastructure this was supposed to reuse **did not actually exist** — Phase A shipped `expire_stale_deposit_holds()` but nothing ever called it. pg_cron is now installed and both jobs are scheduled, so that dependency is genuinely satisfied for the first time.
-4. **Memberships, Packages & Gift Cards (client-facing)** — not yet specced. Distinct from the existing internal services/packages pricing catalog.
+4. **Packages, Gift Cards & Memberships (client-facing)** — ✅ all three fully specced (Section 11), none built yet. Packages and Gift Cards have no dependency on Payments Phase B/C and are buildable immediately. Memberships is specced to directly reuse Phase C's recurring-billing mechanics (retry schedule, no-proration model) and should not be started until Phase C is built and proven — building it against unproven billing infrastructure risks re-solving the same dunning/billing-cycle problems Phase C is meant to solve once.
 
 Lower priority, not yet specced: marketing/email campaigns, payroll & commission tracking, digital consent/intake forms, two-way client texting, native mobile app, deeper BI, inter-location stock transfer, labor-law-aware leave tracking.
 
@@ -253,6 +256,54 @@ Consequence worth knowing: every send currently records a `failed` row in `whats
 - **Race safety (reschedule/cancellation during the reminder window):** handled by querying live `status`/`starts_at` at the moment the job runs, the same "trust a live query over stale state" principle already applied to the appointment overlap trigger and the deposit-hold expiry check. No additional synchronization needed — a cancelled appointment simply won't match the query when the job next runs.
 
 **New schema needed:** `whatsapp_opt_in` (boolean) + opt-in timestamp on `clients`; a `reminded_at` (or similar) field on `appointments` to prevent duplicate reminder sends; Twilio message template IDs/references for the two message types, pending Meta template approval.
+
+---
+
+## 11. Packages, Gift Cards & Memberships — Fully Specced, Not Built
+
+Client-facing, purchasable products — distinct from the existing internal `services` catalog (Owner-managed pricing/bundling, not something a client buys as a product in its own right). All three share a purchase-channel sequencing decision, covered once below rather than three times.
+
+**Shared decision — purchase channel:** all three are **staff-initiated first**, with client self-service explicitly planned as a fast-follow rather than built now. Staff-initiated reuses existing internal infrastructure (income logging, client profiles, and — for Memberships specifically — Phase C's saved-payment-method mechanism) with no new public-facing surface required. Self-service depends on either Phase B's in-salon Dibsy pattern being generalized into a public purchase flow, or its own dedicated build, and is deliberately out of scope for this first pass on all three.
+
+### Packages
+
+Multi-service bundles a client pre-pays for and redeems over future appointments (e.g., "Bridal Package: 1 haircut + 2 facials + 1 manicure").
+
+1. **Multi-service, not single-service.** A package can bundle several different services, each tracked with its own independent remaining count — not a single-service-only model.
+2. **Expiry: Owner-configurable per package type** (e.g., "expires 6 months after purchase"), applied at time of purchase. Not per-individual-sale — one setting per package definition.
+3. **Expired-with-balance handling:** no automatic action. Shows as a staff-visible flag on the client's profile and in a dedicated Owner report of expired packages with unused sessions — gives the Owner/Manager visibility to decide case-by-case, but nothing happens automatically.
+4. **Redemption: automatic detection with override.** When a Receptionist/Manager selects a client + service during booking or at checkout, if the client has an active, non-expired package covering that exact service with remaining balance, the system defaults to "Redeem from package (X of Y remaining)" — easily switched off if the client wants to pay separately that visit.
+5. **Refund policy:**
+   - **Zero sessions redeemed** → full refund allowed.
+   - **One or more sessions redeemed** → purchase becomes non-refundable. Instead, Owner/Manager can manually extend the package's expiry date as a discretionary goodwill action — deliberately chosen over automated proration math, which was rejected as adding real complexity (weighted-by-service-price calculations, edge cases around price changes) for a scenario expected to be rare in practice.
+
+**New schema needed:** a package-type definition table (brand-scoped, list of included services + counts + price + expiry duration); a client-package-purchase table tracking remaining count per included service, purchase date, computed expiry, and status (active/expired/refunded); linkage from `appointments`/service-completion back to which package redemption (if any) covered that visit.
+
+### Gift Cards
+
+Stored monetary value, purchasable by anyone (often not the eventual redeemer — a gift, by definition), redeemable against anything.
+
+1. **Denominations: both suggested and custom.** Owner sets a few standard suggested amounts (e.g., 100 / 200 / 500 QAR) shown as quick options at time of sale, but any custom amount is always allowed too.
+2. **Expiry: Owner-configurable**, same mechanical pattern as Packages. **Flag for the Owner, not a technical caveat:** gift card expiry is more likely to intersect with local consumer-protection rules than package expiry (a gift card represents money already paid in full, not a discounted bundle) — worth the Owner confirming Qatar's actual rules on this before enabling it in production, since neither this spec process nor the eventual build can verify that on the Owner's behalf.
+3. **Redemption scope: fully unrestricted.** No category restrictions — a gift card applies to any service, any amount, and can even be used toward a Package purchase. (A future "restrict to category X" need is a different feature — a targeted discount/voucher — not something to bolt onto gift cards.)
+4. **Identification: unique code, linked to a client at redemption.** Each gift card gets a unique generated code at time of purchase (deliverable via WhatsApp/email/printed, whatever the salon does), independent of any `clients` record — the buyer doesn't need to specify a recipient at purchase time. At redemption, staff enter the code, and it gets linked to whichever `clients` record actually uses it (creating a new client record if the redeemer isn't already one), the same way any other new-client flow works.
+
+**New schema needed:** a `gift_cards` table (brand-scoped, unique code, original value, remaining balance, expiry, status); redemption events linking a gift card to specific appointments/transactions and the client who redeemed it.
+
+### Memberships
+
+Recurring client-paid subscription unlocking an ongoing benefit — depends on Payments Phase C.
+
+1. **Benefit types — Owner's choice per tier, two distinct mechanics (not a generic rules engine):**
+   - **Percentage discount on everything** — applied automatically at every checkout for the life of the membership.
+   - **Included services per billing period** — a specific service (or set of services) included free each period.
+2. **Rollover for the included-services tier type — Owner's choice per tier:**
+   - **Reset** — unused included visits are simply lost at period end (the default, standard pattern).
+   - **Rollover with a mandatory Owner-configurable cap** — unused visits accumulate up to a set maximum, then further accumulation stops (uncapped rollover was explicitly rejected as unbounded business liability).
+3. **Billing mechanics: full reuse of Payments Phase C**, minus the trial concept (a client membership is paid from day one, unlike Owner brand onboarding which gets a trial period). Same retry schedule (day 1/3/7 style), same no-proration model (tier changes apply limits/benefits immediately, billing catches up at next renewal), same webhook-confirmed payment pattern. Deliberately not re-specced from scratch — Phase C will already have solved recurring-charge/dunning correctly, and reusing it avoids a second, parallel set of edge cases to get right.
+4. **Enrollment: staff-initiated, triggered proactively.** A staff-facing prompt appears on a client's profile after their **first completed appointment**, suggesting "offer a membership" — timed to the moment a retention pitch is most likely to land, without ever bypassing actual consent-based enrollment. This is explicitly *not* automatic enrollment: a membership requires the client's real payment details and explicit consent to recurring billing, the same as any other Dibsy charge in this product — no client is ever silently opted into paid recurring billing.
+
+**New schema needed:** a membership-tier definition table (brand-scoped, benefit type, discount % or included-service config, rollover cap if applicable, price, billing interval); a client-membership-enrollment table (active tier, status, saved payment method reference, next billing date, retry-attempt tracking — mirroring Phase C's own schema needs); a mechanism on the client profile to surface the first-completed-appointment enrollment prompt (likely a simple computed flag: has one completed appointment, no active membership yet).
 
 ---
 
