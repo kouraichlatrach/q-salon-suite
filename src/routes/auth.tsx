@@ -100,7 +100,7 @@ function AuthPage() {
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       {/* Left panel */}
-      <div className="hidden flex-col justify-between bg-primary p-12 text-primary-foreground md:flex">
+      <div className="hidden flex-col justify-between bg-accent-fill p-12 text-primary-foreground md:flex">
         <Link to="/" className="flex items-center gap-2.5">
           <Logo size={36} className="rounded-md bg-white p-0.5" />
           <span className="font-display text-lg font-semibold tracking-tight">Q-Salon Suite</span>

@@ -98,7 +98,7 @@ function Onboarding() {
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-3xl px-6 py-12">
         <div className="mb-10 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-semibold">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent-fill text-primary-foreground font-display font-semibold">
             Q
           </div>
           <span className="font-display text-lg font-semibold">Q-Salon Suite</span>

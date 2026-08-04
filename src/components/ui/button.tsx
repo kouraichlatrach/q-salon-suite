@@ -9,7 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        // The old hover was a 90% alpha of the fill, which blended it toward
+        // the sand page behind — so hovering made the label *less* readable,
+        // not more. `accent-press` darkens instead.
+        default: "bg-accent-fill text-primary-foreground shadow hover:bg-accent-press",
         destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
         outline:
           "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
