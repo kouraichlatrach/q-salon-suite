@@ -1,0 +1,14 @@
+{
+  "scanned": "2026-08-03",
+  "design_md": "design.md (written by this run)",
+  "font_stack": "Cormorant Garamond + Karla + Caveat (Google Fonts, src/routes/__root.tsx L109)",
+  "palette": "OKLCH hand-tuned, src/styles.css :root — Warm Sand / Rose Gold / Charcoal",
+  "motion": "none installed — motion-cut project",
+  "spacing": "none found; 4pt scale introduced by this run",
+  "framework": "TanStack Start + Tailwind v4 CSS-first (@theme inline, no tailwind.config)",
+  "preserved": ["font stack", "palette", "radius scale", "sidebar treatment"],
+  "introduced": ["4pt spacing scale", "motion + easing tokens", "display type scale", "status tokens", "mobile navigation"],
+  "conflicts_found": [
+    "src/styles.css :root declared --background and --foreground twice (Light Silver then Warm Sand); the first pair was dead and has been removed"
+  ]
+}
