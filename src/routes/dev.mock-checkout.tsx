@@ -3,7 +3,7 @@ import { useState } from "react";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 
-import { simulateMockPayment } from "@/lib/payments/mock-checkout.functions";
+import { devToolsStatus, simulateMockPayment } from "@/lib/payments/mock-checkout.functions";
 import { BookingShell, StepHeading } from "@/components/booking-shell";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/error-message";
@@ -33,6 +33,9 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/dev/mock-checkout")({
   validateSearch: zodValidator(searchSchema),
+  // Resolved server-side so the page reflects the same runtime check the
+  // handler enforces, rather than a build-time constant that can disagree.
+  loader: async () => await devToolsStatus(),
   head: () => ({
     meta: [
       { title: "Mock checkout (dev)" },
@@ -46,6 +49,7 @@ type Outcome = { status: number; body: string } | null;
 
 function MockCheckoutPage() {
   const search = Route.useSearch();
+  const { enabled } = Route.useLoaderData();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Outcome>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +78,21 @@ function MockCheckoutPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Checked before the missing-ref case: on a deployed build this page should
+  // reveal nothing about itself, whether or not a reference was supplied.
+  if (!enabled) {
+    return (
+      <BookingShell>
+        <div className="py-16 text-center">
+          <h1 className="font-display text-2xl font-semibold">Page not found</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This developer tool is only available in local development.
+          </p>
+        </div>
+      </BookingShell>
+    );
   }
 
   if (!search.ref) {
