@@ -12,6 +12,8 @@
  */
 
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
+
+import { isProduction } from "../env.server";
 import type {
   ChargeIntent,
   ChargeResult,
@@ -30,12 +32,41 @@ export function mockWebhookSecret(): string {
   return process.env.MOCK_PAYMENT_WEBHOOK_SECRET || DEV_SECRET_FALLBACK;
 }
 
+/**
+ * Base URL the client's browser will be sent to for checkout.
+ *
+ * Falls back to localhost only outside production. On a deployed build an
+ * unset value used to produce a perfectly plausible checkout URL pointing at
+ * `http://localhost:8080` — a link that fails on the customer's own machine,
+ * with nothing in the logs to say why. That is the silent-failure class
+ * Section 4 item 4 is about, so it now fails loudly at the point of
+ * misconfiguration instead.
+ *
+ * A variable that exists but is blank is treated as unset: on a hosting
+ * dashboard those are the same mistake, and `"" || next` already falls through
+ * for the first branch but would not for a whitespace-only value.
+ */
 function appBaseUrl(): string {
-  return (
+  const configured = (
     process.env.APP_BASE_URL ||
     process.env.VITE_APP_BASE_URL ||
-    "http://localhost:8080"
-  ).replace(/\/$/, "");
+    ""
+  ).trim();
+
+  // Strip any number of trailing slashes, not just one — `https://host//`
+  // would otherwise survive and produce a double slash in the path.
+  if (configured) return configured.replace(/\/+$/, "");
+
+  if (isProduction()) {
+    throw new Error(
+      "APP_BASE_URL is not set. It is required in production to build the " +
+        "payment checkout URL — without it the customer would be redirected to " +
+        "http://localhost:8080. Set APP_BASE_URL to the deployment's public " +
+        "origin (e.g. https://your-app.vercel.app).",
+    );
+  }
+
+  return "http://localhost:8080";
 }
 
 /** Signs `${timestamp}.${body}` — timestamp is inside the MAC, so it can't be edited. */

@@ -11,7 +11,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+import { devToolsEnabled } from "../env.server";
 import { PAYMENT_WEBHOOK_PATH } from "./webhook-path";
+
+/**
+ * Lets the page render an honest "unavailable" state instead of showing
+ * working-looking buttons that would 404 on click. The handler above is the
+ * authority — this is presentation only, and is evaluated server-side so it
+ * reflects the same runtime NODE_ENV rather than a build-time constant.
+ */
+export const devToolsStatus = createServerFn({ method: "GET" }).handler(
+  async () => ({ enabled: devToolsEnabled() }),
+);
 
 export const simulateMockPayment = createServerFn({ method: "POST" })
   .inputValidator(
@@ -36,8 +47,21 @@ export const simulateMockPayment = createServerFn({ method: "POST" })
         .parse(d),
   )
   .handler(async ({ data }) => {
-    // Hard refusal outside mock mode: this endpoint can mint "payment
-    // succeeded" events, so it must never be callable against a real gateway.
+    // Hard refusal on any deployed build. This endpoint mints "payment
+    // succeeded" events, so reachability is the whole risk — and the
+    // PAYMENT_PROVIDER check below cannot carry that on its own, because it
+    // defaults to "mock" when unset. A deployment with no payment
+    // configuration at all therefore passed it.
+    if (!devToolsEnabled()) {
+      return {
+        ok: false as const,
+        status: 404,
+        body: "not found",
+      };
+    }
+
+    // Kept as a second, independent condition: even in development this must
+    // never be callable once a real gateway is configured.
     if ((process.env.PAYMENT_PROVIDER || "mock").toLowerCase() !== "mock") {
       return { ok: false as const, status: 403, body: "mock checkout disabled (PAYMENT_PROVIDER is not 'mock')" };
     }
