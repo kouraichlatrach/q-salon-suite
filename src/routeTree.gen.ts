@@ -29,6 +29,7 @@ import { Route as AuthenticatedAppServicesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppStaffRouteImport } from './routes/_authenticated/app.staff'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
+import { Route as AuthenticatedAppWhatsNewRouteImport } from './routes/_authenticated/app.whats-new'
 import { Route as BookBrandSlugConfirmedRouteImport } from './routes/book.$brandSlug.confirmed'
 import { Route as BookBrandSlugLookupRouteImport } from './routes/book.$brandSlug.lookup'
 import { Route as AuthenticatedAdminBrandsIdRouteImport } from './routes/_authenticated/admin.brands.$id'
@@ -140,6 +141,12 @@ const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
   path: '/stock',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppWhatsNewRoute =
+  AuthenticatedAppWhatsNewRouteImport.update({
+    id: '/whats-new',
+    path: '/whats-new',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const BookBrandSlugConfirmedRoute = BookBrandSlugConfirmedRouteImport.update({
   id: '/confirmed',
   path: '/confirmed',
@@ -187,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/app/whats-new': typeof AuthenticatedAppWhatsNewRoute
   '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -211,6 +219,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/app/whats-new': typeof AuthenticatedAppWhatsNewRoute
   '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -239,6 +248,7 @@ export interface FileRoutesById {
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/staff': typeof AuthenticatedAppStaffRouteWithChildren
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
+  '/_authenticated/app/whats-new': typeof AuthenticatedAppWhatsNewRoute
   '/book/$brandSlug/confirmed': typeof BookBrandSlugConfirmedRoute
   '/book/$brandSlug/lookup': typeof BookBrandSlugLookupRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -267,6 +277,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/app/whats-new'
     | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/admin/'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/staff'
     | '/app/stock'
+    | '/app/whats-new'
     | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/admin'
@@ -318,6 +330,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/settings'
     | '/_authenticated/app/staff'
     | '/_authenticated/app/stock'
+    | '/_authenticated/app/whats-new'
     | '/book/$brandSlug/confirmed'
     | '/book/$brandSlug/lookup'
     | '/_authenticated/admin/'
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppStockRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/whats-new': {
+      id: '/_authenticated/app/whats-new'
+      path: '/whats-new'
+      fullPath: '/app/whats-new'
+      preLoaderRoute: typeof AuthenticatedAppWhatsNewRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/book/$brandSlug/confirmed': {
       id: '/book/$brandSlug/confirmed'
       path: '/confirmed'
@@ -567,6 +587,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppStaffRoute: typeof AuthenticatedAppStaffRouteWithChildren
   AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
+  AuthenticatedAppWhatsNewRoute: typeof AuthenticatedAppWhatsNewRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
@@ -581,6 +602,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppStaffRoute: AuthenticatedAppStaffRouteWithChildren,
   AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
+  AuthenticatedAppWhatsNewRoute: AuthenticatedAppWhatsNewRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 

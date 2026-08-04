@@ -1,5 +1,5 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   CalendarClock,
   Users,
@@ -13,6 +13,8 @@ import {
   Inbox,
   Gift,
   Boxes,
+  Menu,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +67,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tenant = useTenant();
   const navigate = useNavigate();
 
+  // The sidebar was `hidden md:flex` with no alternative, so below 768px the
+  // app had no navigation at all — every route was a dead end unless you knew
+  // the URL. This drawer is that missing half.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  // Navigating closes the drawer. Without this the panel stays open over the
+  // page you just asked for.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  // Escape closes it, and the body doesn't scroll behind the overlay.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
@@ -95,50 +123,136 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = NAV_BY_ROLE[role];
 
+  const identity = tenant.data.fullName ?? tenant.data.email;
+
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-4 md:flex">
-        <Link to="/app" className="mb-8 flex items-center gap-2.5 px-2">
-          <Logo size={32} className="rounded-md bg-white p-0.5 shadow-sm" />
-          <span className="font-display text-base font-semibold tracking-tight text-sidebar-foreground">
+      {/* Desktop side-rail. */}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-[var(--space-sm)] py-[var(--space-md)] md:flex">
+        <RailBody
+          nav={nav}
+          role={role}
+          identity={identity}
+          onSignOut={handleSignOut}
+        />
+      </aside>
+
+      {/* Mobile top bar — the rail has no room below 768px. */}
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-sidebar-border bg-sidebar px-[var(--space-md)] md:hidden">
+        <Link
+          to="/app"
+          className="flex items-center gap-2 rounded-[var(--radius)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sidebar-ring)]"
+        >
+          <Logo size={26} className="rounded-[var(--radius-sm)] bg-white p-0.5" />
+          <span className="font-display text-sm font-semibold tracking-tight text-sidebar-foreground">
             Q-Salon Suite
           </span>
         </Link>
-        <nav className="flex-1 space-y-1">
-          {nav.map((item) => (
-            <Link
-              key={item.label}
-              to={item.to}
-              activeOptions={{ exact: item.to === "/app" }}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              activeProps={{
-                className:
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium bg-sidebar-accent text-sidebar-accent-foreground",
-              }}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-sidebar-border pt-3">
-          <div className="mb-2 px-3">
-            <div className="truncate text-sm font-medium text-sidebar-foreground">
-              {tenant.data.fullName ?? tenant.data.email}
-            </div>
-            <div className="text-xs capitalize text-sidebar-foreground/60">{role}</div>
-          </div>
-          <button
-            onClick={handleSignOut}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent"
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
-      </aside>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-expanded={menuOpen}
+          aria-controls="app-mobile-nav"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          className="-mr-1 inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius)] text-sidebar-foreground transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-sidebar-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sidebar-ring)] active:translate-y-px"
+        >
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </header>
 
-      <main className="flex-1 overflow-x-hidden">{children}</main>
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-charcoal/40 md:hidden"
+          />
+          <div
+            id="app-mobile-nav"
+            className="fixed inset-x-0 bottom-0 top-14 z-40 flex flex-col overflow-y-auto bg-sidebar px-[var(--space-sm)] py-[var(--space-md)] md:hidden"
+          >
+            <RailBody
+              nav={nav}
+              role={role}
+              identity={identity}
+              onSignOut={handleSignOut}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Gate 34: clip, not hidden — `hidden` would make this a scroll
+          container and break any sticky child inside a page. */}
+      <main className="min-w-0 flex-1 overflow-x-clip pt-14 md:pt-0">{children}</main>
     </div>
+  );
+}
+
+/**
+ * Shared by the desktop rail and the mobile drawer so the two can't drift.
+ * The active item is marked with a rose-gold edge rather than a filled pill —
+ * the accent stays a hairline, well under the 3%-of-viewport budget.
+ */
+function RailBody({
+  nav,
+  role,
+  identity,
+  onSignOut,
+}: {
+  nav: NavItem[];
+  role: AppRole;
+  identity: string | null;
+  onSignOut: () => void;
+}) {
+  return (
+    <>
+      <Link
+        to="/app"
+        className="mb-[var(--space-lg)] hidden items-center gap-[var(--space-xs)] rounded-[var(--radius)] px-[var(--space-xs)] py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sidebar-ring)] md:flex"
+      >
+        <Logo size={30} className="rounded-[var(--radius-sm)] bg-white p-0.5 shadow-sm" />
+        <span className="font-display text-base font-semibold tracking-tight text-sidebar-foreground">
+          Q-Salon Suite
+        </span>
+      </Link>
+
+      <nav className="flex-1 space-y-[var(--space-2xs)]">
+        {nav.map((item) => (
+          <Link
+            key={item.label}
+            to={item.to}
+            activeOptions={{ exact: item.to === "/app" }}
+            className="flex items-center gap-[var(--space-sm)] whitespace-nowrap rounded-[var(--radius)] border-l-2 border-transparent px-[var(--space-sm)] py-[var(--space-xs)] text-sm font-medium text-sidebar-foreground/75 transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sidebar-ring)]"
+            activeProps={{
+              className:
+                "flex items-center gap-[var(--space-sm)] whitespace-nowrap rounded-[var(--radius)] border-l-2 border-[var(--color-sidebar-primary)] bg-sidebar-accent px-[var(--space-sm)] py-[var(--space-xs)] text-sm font-medium text-sidebar-accent-foreground",
+            }}
+          >
+            <item.icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      {/* Ft2 · inline rule, single line. Identity and exit, nothing else. */}
+      <div className="mt-[var(--space-md)] border-t border-sidebar-border pt-[var(--space-sm)]">
+        <div className="px-[var(--space-sm)] pb-[var(--space-xs)]">
+          <div className="truncate text-sm font-medium text-sidebar-foreground">
+            {identity}
+          </div>
+          <div className="text-xs capitalize text-sidebar-foreground/55">{role}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="flex w-full items-center gap-2 whitespace-nowrap rounded-[var(--radius)] px-[var(--space-sm)] py-2 text-sm text-sidebar-foreground/75 transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-sidebar-ring)] active:translate-y-px"
+        >
+          <LogOut aria-hidden="true" className="h-4 w-4 shrink-0" /> Sign out
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -156,7 +270,7 @@ function NoBrandLanding({
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between border-b border-border px-6 py-4">
-        <Link to="/app" className="flex items-center gap-2.5">
+        <Link to="/app" className="flex items-center gap-[var(--space-xs)]">
           <Logo size={32} />
           <span className="font-display text-base font-semibold tracking-tight">Q-Salon Suite</span>
         </Link>

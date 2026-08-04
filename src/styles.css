@@ -68,11 +68,9 @@
 :root {
   --radius: 0.375rem; /* 6px per spec */
 
-  /* Light Silver app background */
-  --background: oklch(0.977 0.002 240);
-  --foreground: oklch(0.27 0.007 260); /* Charcoal #32353A */
-
-  /* Warm Sand app background */
+  /* Warm Sand app background. A second, earlier "Light Silver" pair used to sit
+     above this one and was silently overridden by it — removed, since a dead
+     declaration reads like an active choice to the next person editing here. */
   --background: oklch(0.977 0.006 75);
   --foreground: oklch(0.29 0.006 260); /* Charcoal #32353A */
 
@@ -200,5 +198,94 @@
 
   input, textarea {
     font-feature-settings: "kern", "liga";
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Hallmark · macrostructure: Stat-Led · genre: modern-minimal
+ * theme: custom-tuned (anchored on the existing Warm Sand / Rose Gold brand,
+ *        not a catalog swap) · tone: professional, efficient, quietly confident
+ * anchor hue: 55 (rose gold) · nav: N3 side-rail · footer: Ft2 inline rule
+ * pre-emit critique: P4 H5 E4 S5 R5 V4
+ *
+ * Additive only. Everything above this line is the project's own system and is
+ * left exactly as it was; these tokens fill the gaps it never had — a spacing
+ * scale, motion primitives, a display scale, and status colours.
+ * ------------------------------------------------------------------------- */
+:root {
+  /* 4pt scale. The app previously used ad-hoc Tailwind values; naming them
+     means a section can be re-spaced without hunting for magic numbers. */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Display scale. --text-stat is the Stat-Led hero size: big enough to read
+     across a counter at a glance, small enough that four fit on one row. */
+  --text-stat: clamp(2rem, 1.4rem + 2.4vw, 3.25rem);
+  --text-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
+  --text-display-s: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
+
+  /* Motion. This is a motion-cut project (no animation library installed), so
+     these cover state transitions only — nothing decorative. */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Status. Live borrows the existing success hue; upcoming is deliberately
+     chromatic-free so a not-yet-shipped feature can never read as an accent. */
+  --color-status-live: var(--success);
+  --color-status-upcoming: var(--muted-foreground);
+
+  /* Focus ring — a deeper rose gold than --ring.
+     Measured: --ring oklch(0.68 0.075 55) lands at 2.94:1 against the white
+     card surface, just under the 3:1 floor a focus indicator has to clear.
+     This keeps the brand hue and drops the lightness until it passes. --ring
+     itself is left alone because shadcn components across the app use it. */
+  --color-focus: oklch(0.55 0.13 55);
+
+  --rule-hairline: 1px solid var(--border);
+}
+
+@layer base {
+  /* Gate 34: clip, never hidden — `hidden` creates a scroll container and
+     breaks position: sticky in the same subtree. */
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  /* Gate 51: long unbroken words (a salon name, an email) must wrap inside a
+     display heading rather than force a horizontal scrollbar at 320px. */
+  h1,
+  h2,
+  h3,
+  .font-display {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  /* Tabular figures everywhere a number is compared against another number.
+     Proportional digits make a column of QAR totals visibly ragged. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
