@@ -1,381 +1,571 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { ArrowRight, Check, Clock } from "lucide-react";
+
 import { Logo } from "@/components/logo";
-import {
-  ArrowRight,
-  Calendar,
-  Users,
-  TrendingUp,
-  MessageSquare,
-  Package,
-  Check,
-  Sparkles,
-} from "lucide-react";
+import { LIVE, UPCOMING } from "@/lib/capabilities";
+import { PLAN_FEATURES, PLAN_LIMITS, type PlanTier } from "@/lib/plan-limits";
+
+/* ---------------------------------------------------------------------------
+ * Hallmark · genre: modern-minimal · macrostructure: Narrative Workflow
+ * design-system: design.md · designed-as-app
+ * theme: locked (Warm Sand paper · Rose Gold accent · Cormorant + Karla)
+ * nav: N9 edge-aligned minimal · footer: Ft1 mast-headed
+ * H2 hero knobs: ratio=7/5, right=proof-column, divider=hairline
+ * F4 step knobs: numbering=01/02/03, layout=vertical-stack, connector=line
+ * F3 spec knobs: columns=3 (key/value/footnote), rules=every-row, nums=tabular
+ * enrichment: none — typography only
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Why this shape, and not the Bento Grid that was here:
+ * a prospective owner does not yet know what this product IS. A grid of
+ * feature tiles answers "what does it have"; a numbered sequence answers
+ * "what happens in my salon", which is the question being asked. It also needs
+ * no invented metrics, no testimonials and no product screenshots to stand up
+ * — and this page had all three of the first kind before.
+ *
+ * Accent discipline: rose gold appears as button fill and focus rings only.
+ * The old page used it as a full section background behind a fabricated
+ * revenue chart; both are gone.
+ * ------------------------------------------------------------------------ */
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Q-Salon Suite — salon management for Qatar" },
+      {
+        name: "description",
+        content:
+          "Appointments, clients, stock and reporting for beauty salons in Qatar. One brand, every location, four role levels, priced in QAR.",
+      },
+    ],
+  }),
   component: Landing,
 });
 
 function Landing() {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <Nav />
-      <Hero />
-      <BentoGrid />
-      <Pricing />
+      <PublicNav />
+      <main>
+        <Hero />
+        <Stages />
+        <SpecSheet />
+        <NotYetOn />
+        <Plans />
+        <ClosingCta />
+      </main>
       <SiteFooter />
     </div>
   );
 }
 
-/* ---------------------------------- Nav ---------------------------------- */
+/* Shared voice ------------------------------------------------------------ */
 
-function Nav() {
+const SHELL = "mx-auto w-full max-w-6xl px-5 md:px-10";
+
+/**
+ * One button shape for the whole page, so the CTA voice matches the app's.
+ * `whitespace-nowrap` is not cosmetic — a primary action that wraps to two
+ * lines at 320px reads as a broken element rather than a button.
+ */
+const BUTTON_BASE =
+  "inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius)] px-4 text-sm font-medium transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-out)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)] sm:px-6";
+
+/**
+ * Fills with `--color-accent-fill`, not `--primary`.
+ *
+ * White on `--primary` measures 2.94:1, and on the old `rose-gold-deep` hover
+ * 3.55:1 — both below the 4.5:1 a 14px button label needs. Same finding
+ * design.md already recorded for the focus ring; it simply never reached the
+ * button fills. Every filled `--primary` button elsewhere in the app has the
+ * same problem and needs the same swap.
+ */
+const BUTTON_PRIMARY = `${BUTTON_BASE} bg-accent-fill text-primary-foreground hover:bg-accent-press`;
+
+const BUTTON_QUIET = `${BUTTON_BASE} border border-border bg-card text-foreground hover:bg-secondary`;
+
+/**
+ * `py-3 -my-3` is a hit-target expander, not spacing.
+ *
+ * These links render at 20px tall, which is a fine reading size and an unfair
+ * tap target on a phone. The padding lifts the touchable box to 44px and the
+ * matching negative margin gives the space back to the layout, so nothing
+ * moves visually.
+ *
+ * It also sets no `display` utility, deliberately. It used to open with
+ * `inline-flex`, which the nav's `hidden sm:inline` could not override —
+ * Tailwind resolves conflicting utilities by their order in the generated
+ * stylesheet, not by their order in the class attribute, so the later-emitted
+ * `inline-flex` won, "Sign in" stayed visible at 320px, and it pushed the
+ * primary action off the right edge.
+ */
+const LINK_QUIET =
+  "whitespace-nowrap py-3 -my-3 text-sm text-muted-foreground underline underline-offset-4 transition-[color,background-color,border-color] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-focus)]";
+
+function Wordmark({
+  size = 30,
+  className = "",
+  /**
+   * Drops the lettering below 380px, leaving the mark alone.
+   *
+   * The nav is one row of two nowrap items; on the narrowest phones the
+   * wordmark and the primary action together are ~3px wider than the gutter
+   * allows, so the button kissed the screen edge. Losing the lettering for a
+   * couple of hundred pixels of width is a better trade than shrinking the
+   * only action on the page, and the mark still identifies the site.
+   */
+  compact = false,
+}: {
+  size?: number;
+  className?: string;
+  compact?: boolean;
+}) {
   return (
-    <header className="w-full">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6 md:px-8">
-        <Link to="/" className="flex items-center gap-2.5">
-          <Logo size={34} />
-          <span className="font-display text-2xl font-medium tracking-tight text-foreground">
-            Q-Salon <span className="italic text-primary">Suite</span>
-          </span>
+    <span className={`flex items-center gap-[var(--space-xs)] ${className}`}>
+      <Logo size={size} />
+      <span
+        className={`whitespace-nowrap font-display text-lg font-medium tracking-tight sm:text-xl md:text-2xl ${
+          compact ? "max-[379px]:hidden" : ""
+        }`}
+      >
+        Q-Salon Suite
+      </span>
+    </span>
+  );
+}
+
+/* Nav · N9 edge-aligned minimal -------------------------------------------
+ * Wordmark hard-left, actions hard-right, nothing in between. The empty
+ * middle is the point: a five-link marketing bar is the most recognisable
+ * templated shape there is, and this page's own numbered sequence already
+ * does the navigating. No hamburger is needed because there is no link row
+ * to hide — which also sidesteps the missing-mobile-nav bug the app shell hit.
+ * ------------------------------------------------------------------------ */
+
+function PublicNav() {
+  return (
+    <header className="border-b border-border">
+      <div className={`${SHELL} flex h-20 items-center justify-between gap-4`}>
+        <Link
+          to="/"
+          className="inline-flex min-w-0 items-center rounded-[var(--radius)] py-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--color-focus)]"
+        >
+          <Wordmark compact />
         </Link>
 
-        <nav className="hidden items-center gap-10 md:flex">
-          {["Features", "Pricing", "About"].map((l) => (
-            <a
-              key={l}
-              href={`#${l.toLowerCase()}`}
-              className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
-            >
-              {l}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <Link
-            to="/auth"
-            className="hidden px-4 py-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:inline-block"
-          >
+        <div className="flex items-center gap-[var(--space-md)]">
+          <Link to="/auth" className={`hidden sm:inline ${LINK_QUIET}`}>
             Sign in
           </Link>
-          <Link
-            to="/auth"
-            search={{ mode: "signup" }}
-            className="inline-flex h-10 items-center justify-center rounded-none bg-primary px-6 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-colors hover:bg-rose-gold-deep"
-          >
-            Request Access
+          <Link to="/auth" search={{ mode: "signup" }} className={BUTTON_PRIMARY}>
+            Request access
           </Link>
         </div>
       </div>
-      <div className="mx-auto h-px max-w-6xl bg-border/60" />
     </header>
   );
 }
 
-/* --------------------------------- Hero ---------------------------------- */
+/* Hero · H2 split diptych, 7/5 --------------------------------------------
+ * The right column is a proof column rather than a product shot. There are no
+ * real screenshots to use, and a hand-drawn fake of an interface that already
+ * exists is worse than none. What it carries instead is the only proof this
+ * product can honestly offer today: an exact count of what runs, and an exact
+ * count of what doesn't — both read from the same list the app itself shows
+ * staff, so the two can never disagree.
+ * ------------------------------------------------------------------------ */
 
 function Hero() {
-  const [email, setEmail] = useState("");
   return (
-    <section className="px-6 pt-20 pb-16 md:px-8 md:pt-28 md:pb-20">
-      <div className="mx-auto max-w-3xl space-y-7 text-center">
-        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-          <Sparkles className="h-3.5 w-3.5" />
-          The New Standard in Qatar Luxury
-        </span>
+    // Bottom padding runs heavier than top on purpose. Symmetric padding makes
+    // a hero float free of the page; weighting the foot pulls it into the
+    // first stage's rhythm, so the eye carries down instead of stopping.
+    <section
+      className={`${SHELL} pb-[var(--space-3xl)] pt-[var(--space-xl)] md:pb-[calc(var(--space-3xl)*1.5)] md:pt-[var(--space-2xl)]`}
+    >
+      <div className="grid gap-[var(--space-xl)] lg:grid-cols-12 lg:items-start lg:gap-[var(--space-2xl)]">
+        <div className="lg:col-span-7">
+          <h1 className="max-w-[16ch] font-display text-[length:var(--text-hero)] font-medium leading-[1.05] tracking-tight">
+            Run every branch from one place.
+          </h1>
 
-        <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-foreground md:text-[76px]">
-          Elevate your salon's
-          <br />
-          <span className="italic text-primary">digital presence.</span>
-        </h1>
+          <p className="mt-[var(--space-lg)] max-w-[54ch] text-base leading-relaxed text-muted-foreground md:text-lg">
+            Appointments, clients, stock and reporting for beauty salons in Qatar. One brand, every
+            location, four role levels — and a public booking page your clients can use tonight.
+          </p>
 
-        <p className="mx-auto max-w-xl text-lg leading-relaxed text-foreground/70">
-          A bespoke CRM suite designed for the prestigious beauty houses of Qatar.
-          Elegance meets operational excellence — across every branch, every chair,
-          every guest.
-        </p>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            window.location.href = `/auth?mode=signup${
-              email ? `&email=${encodeURIComponent(email)}` : ""
-            }`;
-          }}
-          className="mx-auto flex max-w-md flex-col items-stretch gap-3 pt-4 sm:max-w-lg sm:flex-row"
-        >
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@salon.qa"
-            dir="auto"
-            className="h-12 flex-1 border border-border bg-card px-4 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="inline-flex h-12 items-center justify-center gap-2 bg-primary px-7 text-xs font-semibold uppercase tracking-[0.18em] text-primary-foreground transition-all hover:bg-rose-gold-deep hover:shadow-lg"
-          >
-            Request Access
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </form>
-
-        <p className="text-xs text-foreground/50">
-          Trusted by Doha's premier salons · Arabic &amp; English throughout
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------- Bento Grid ------------------------------ */
-
-function BentoGrid() {
-  return (
-    <section id="features" className="px-6 pb-24 md:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="grid auto-rows-[200px] grid-cols-1 gap-4 md:grid-cols-12">
-          {/* Scheduling — hero tile */}
-          <div className="flex flex-col justify-between border border-steel bg-sand-deep p-8 md:col-span-8 md:row-span-2">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
-                <Calendar className="h-3.5 w-3.5" />
-                Appointments
-              </div>
-              <h3 className="font-display text-4xl font-medium leading-tight text-foreground">
-                Seamless Scheduling
-              </h3>
-              <p className="max-w-sm text-sm leading-relaxed text-foreground/60">
-                Manage high-profile bookings with a fluid, intuitive interface designed
-                for fast-paced luxury environments — with double-booking prevention at
-                the database level.
-              </p>
-            </div>
-
-            {/* Product surface preview */}
-            <div className="mt-8 flex gap-3 overflow-hidden">
-              <CalendarSlot time="10:00" name="Fatima Al-Thani" service="Balayage" tone="active" />
-              <CalendarSlot time="11:30" name="Sarah Jenkins" service="HydraFacial" />
-              <CalendarSlot time="14:00" name="Dana Rashid" service="Silk Press" />
-            </div>
+          <div className="mt-[var(--space-xl)] flex flex-wrap items-center gap-[var(--space-sm)]">
+            <Link to="/auth" search={{ mode: "signup" }} className={BUTTON_PRIMARY}>
+              Request access
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+            <a href="#inside" className={BUTTON_QUIET}>
+              See what runs today
+            </a>
           </div>
 
-          {/* Client CRM */}
-          <div className="flex flex-col justify-center border border-charcoal bg-charcoal p-8 text-white md:col-span-4 md:row-span-1">
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-primary">
-              <Users className="h-3.5 w-3.5" />
-              Clients
-            </div>
-            <h3 className="mb-2 font-display text-2xl font-medium text-primary">
-              Client Archives
-            </h3>
-            <p className="text-sm text-white/60">
-              Private profiles, visit history, and no-show tracking — brand-wide.
-            </p>
-          </div>
+          <p className="mt-[var(--space-md)] text-sm text-muted-foreground">
+            No card required — v1 is invoiced by hand.
+          </p>
+        </div>
 
-          {/* Revenue */}
-          <div className="flex flex-col justify-between bg-primary p-8 text-white md:col-span-4 md:row-span-2">
-            <div className="flex items-center justify-between">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/30">
-                <TrendingUp className="h-5 w-5" />
-              </div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/60">
-                Reports
-              </div>
-            </div>
-            <div>
-              <div className="mb-1 font-display text-5xl font-medium leading-none">
-                +28.4%
-              </div>
-              <div className="mb-4 text-xs uppercase tracking-widest text-white/60">
-                Revenue vs Q3
-              </div>
-              <div className="mb-5 flex items-end gap-1.5 h-14">
-                {[35, 55, 45, 70, 60, 85, 100].map((h, i) => (
-                  <div
-                    key={i}
-                    className="w-full rounded-sm bg-white/80"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-              </div>
-              <h3 className="font-display text-2xl font-medium">Revenue Insights</h3>
-              <p className="mt-1 text-sm text-white/80">
-                Visualizing growth with artisanal precision.
-              </p>
-            </div>
-          </div>
-
-          {/* Marketing */}
-          <div className="flex items-center border border-steel bg-sand-deep p-8 md:col-span-4 md:row-span-1">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-primary">
-                <MessageSquare className="h-4 w-4" />
-              </div>
-              <h3 className="font-display text-xl font-medium text-foreground">
-                WhatsApp Reminders
-              </h3>
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-foreground/50">
-                Bespoke Outreach
-              </p>
-            </div>
-          </div>
-
-          {/* Inventory */}
-          <div className="flex items-center justify-between border border-steel bg-card p-8 md:col-span-4 md:row-span-1">
-            <div className="flex items-center gap-3">
-              <Package className="h-5 w-5 text-primary" />
-              <h3 className="font-display text-xl font-medium text-foreground">
-                Inventory Control
-              </h3>
-            </div>
-            <div className="h-0.5 w-12 bg-primary" />
-          </div>
+        {/* Hairline divider on wide screens; on narrow it becomes a top border
+            on the proof column itself, so the two never double up. */}
+        <div className="lg:col-span-5 lg:border-l lg:border-border lg:pl-[var(--space-xl)]">
+          <dl className="divide-y divide-border border-y border-border">
+            <ProofRow
+              figure={String(LIVE.length)}
+              label="capabilities working today"
+              detail="Booking, deposits, clients, stock, gift cards, packages, reports."
+            />
+            <ProofRow
+              figure={String(UPCOMING.length)}
+              label="built, not yet switched on"
+              detail="Named in full below. We would rather you knew now than found out later."
+            />
+            <ProofRow
+              figure="QAR"
+              label="throughout, not converted"
+              detail="Client and service names accept Arabic beside the English interface."
+            />
+          </dl>
         </div>
       </div>
     </section>
   );
 }
 
-function CalendarSlot({
-  time,
-  name,
-  service,
-  tone,
-}: {
-  time: string;
-  name: string;
-  service: string;
-  tone?: "active";
-}) {
-  const active = tone === "active";
+function ProofRow({ figure, label, detail }: { figure: string; label: string; detail: string }) {
   return (
-    <div
-      className={`h-32 flex-shrink-0 border p-3 ${
-        active
-          ? "w-52 border-primary/40 bg-primary/10"
-          : "w-48 border-white/40 bg-white/60"
-      }`}
-    >
-      <div
-        className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${
-          active ? "text-primary" : "text-foreground/40"
-        }`}
-      >
-        {time}
-      </div>
-      <div className="font-display text-base leading-tight text-foreground">
-        {name}
-      </div>
-      <div className="mt-1 text-xs text-foreground/60">{service}</div>
-      <div className={`mt-3 h-0.5 w-8 ${active ? "bg-primary" : "bg-foreground/15"}`} />
+    <div className="py-[var(--space-md)]">
+      <dt className="flex items-baseline gap-[var(--space-sm)]">
+        {/* No `.tnum` here, deliberately. Tabular figures are for columns of
+            numbers compared against each other; these three are unrelated and
+            stacked, and Cormorant's tabular advance opens a visible gap inside
+            "12" when nothing needs to line up with it.
+            `overflow-wrap: anywhere` is set globally on display type — correct
+            for headings, wrong for a figure, which must never split. */}
+        <span className="shrink-0 font-display text-[length:var(--text-display)] font-medium leading-none [overflow-wrap:normal]">
+          {figure}
+        </span>
+        <span className="min-w-0 text-sm text-muted-foreground">{label}</span>
+      </dt>
+      <dd className="mt-[var(--space-xs)] text-sm leading-relaxed text-muted-foreground">
+        {detail}
+      </dd>
     </div>
   );
 }
 
-/* --------------------------------- Pricing -------------------------------- */
+/* Stages · F4 step sequence ------------------------------------------------
+ * The numerals sit directly above their heading in the same column. The
+ * tag-left / heading-right two-column arrangement is the single most
+ * recognisable templated-editorial pattern and is banned outright — this is
+ * one of the few places a numeral is legitimate, because the stages really
+ * are ordinal.
+ * ------------------------------------------------------------------------ */
 
-function Pricing() {
-  const tiers = [
-    {
-      name: "Starter",
-      price: "1,200",
-      note: "For a single boutique salon",
-      features: ["1 location", "Up to 5 staff", "Core CRM & bookings", "Email support"],
-    },
-    {
-      name: "Growth",
-      price: "2,800",
-      note: "For growing salon chains",
-      features: [
-        "Up to 3 locations",
-        "Up to 20 staff",
-        "Stock & reports",
-        "WhatsApp reminders",
-        "Priority support",
-      ],
-      featured: true,
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      note: "For established beauty houses",
-      features: [
-        "Unlimited locations",
-        "Unlimited staff",
-        "Custom onboarding",
-        "Dedicated success lead",
-      ],
-    },
-  ];
+const STAGES = [
+  {
+    n: "01",
+    title: "Set it up once",
+    body: "Add your locations, your service list and your team. A service can carry a different price at a different branch, and only an Owner can set that. Everyone else gets one of four fixed roles — Manager, Receptionist or Technician — and sees only what that role needs.",
+  },
+  {
+    n: "02",
+    title: "Take the booking",
+    body: "Clients book themselves on your own page: phone-verified, showing live availability worked out from real staff rotas and approved leave. Or your receptionist enters it at the desk. Either way the database itself refuses an overlap, so the same chair cannot be sold twice.",
+  },
+  {
+    n: "03",
+    title: "Run the day",
+    body: "Where you require a deposit, it is taken before the slot is held. Completing a service deducts the products it used from that branch's stock. If the client holds a gift card or a prepaid package, checkout spots it and offers to use it.",
+  },
+  {
+    n: "04",
+    title: "See what it made",
+    body: "Revenue, stock movement and staff performance — each scoped to who is allowed to see it. A technician sees their own day. A manager sees their branch. You see the whole brand.",
+  },
+];
 
+function Stages() {
   return (
-    <section id="pricing" className="border-t border-border/60 px-6 py-24 md:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-14 max-w-2xl">
-          <span className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-            Pricing
-          </span>
-          <h2 className="mt-3 font-display text-4xl md:text-5xl">
-            Bespoke plans, transparent value.
-          </h2>
-          <p className="mt-3 text-foreground/60">
-            Priced in QAR per month. Manual, offline invoicing in v1 — no card required.
-          </p>
-        </div>
+    <section
+      id="inside"
+      aria-labelledby="stages-heading"
+      className="scroll-mt-[var(--space-lg)] border-t border-border bg-secondary/40"
+    >
+      <div className={`${SHELL} py-[var(--space-2xl)] md:py-[var(--space-3xl)]`}>
+        <h2
+          id="stages-heading"
+          className="max-w-[22ch] font-display text-[length:var(--text-display)] font-medium tracking-tight"
+        >
+          What a week looks like once it is in.
+        </h2>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {tiers.map((t) => (
-            <div
-              key={t.name}
-              className={`flex flex-col border p-8 ${
-                t.featured
-                  ? "border-primary bg-charcoal text-white"
-                  : "border-steel bg-card"
+        <ol className="mt-[var(--space-xl)] space-y-0">
+          {STAGES.map((s, i) => (
+            <li
+              key={s.n}
+              className={`grid gap-[var(--space-sm)] py-[var(--space-lg)] md:grid-cols-12 md:gap-[var(--space-xl)] ${
+                i > 0 ? "border-t border-border" : ""
               }`}
             >
-              <div
-                className={`text-[10px] font-bold uppercase tracking-[0.22em] ${
-                  t.featured ? "text-primary" : "text-primary"
-                }`}
-              >
-                {t.name}
-              </div>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="font-display text-5xl font-medium">
-                  {t.price === "Custom" ? "Custom" : `QAR ${t.price}`}
+              <div className="md:col-span-5">
+                <span className="block font-display text-[length:var(--text-display-s)] font-medium leading-none text-muted-foreground [overflow-wrap:normal]">
+                  {s.n}
                 </span>
-                {t.price !== "Custom" && (
-                  <span className={`text-sm ${t.featured ? "text-white/50" : "text-foreground/50"}`}>
-                    /mo
-                  </span>
-                )}
+                <h3 className="mt-[var(--space-xs)] font-display text-[length:var(--text-display-s)] font-medium tracking-tight">
+                  {s.title}
+                </h3>
               </div>
-              <p className={`mt-2 text-sm ${t.featured ? "text-white/60" : "text-foreground/60"}`}>
-                {t.note}
+              <p className="max-w-[62ch] text-sm leading-relaxed text-muted-foreground md:col-span-7 md:text-base">
+                {s.body}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* Spec sheet · F3 ----------------------------------------------------------
+ * No logo wall and no testimonials, because there are no customers to name
+ * yet and inventing them is the fastest way to lose a buyer who checks. What
+ * stands in their place is a list of things that are simply checkable.
+ * ------------------------------------------------------------------------ */
+
+const FACTS: { key: string; value: string; note: string }[] = [
+  {
+    key: "Currency",
+    value: "QAR throughout",
+    note: "Formatted for Qatar, not converted from a dollar figure.",
+  },
+  {
+    key: "The week",
+    value: "Starts Sunday",
+    note: "Pinned explicitly, so a weekly revenue figure matches your working week.",
+  },
+  {
+    key: "Language",
+    value: "English interface",
+    note: "Client and service fields render Arabic correctly beside it.",
+  },
+  {
+    key: "Double-booking",
+    value: "Refused by the database",
+    note: "Not merely hidden in the interface, where a second tab could get past it.",
+  },
+  {
+    key: "Roles",
+    value: "Four, fixed",
+    note: "Owner, Manager, Receptionist, Technician. Not a permissions builder to configure.",
+  },
+  {
+    key: "Separation",
+    value: "Enforced per row",
+    note: "One salon's data is walled off from another's in the database, not in app code.",
+  },
+  {
+    key: "Hosting",
+    value: "Mumbai region",
+    note: "Not inside Qatar — worth raising early if you have a residency requirement.",
+  },
+  {
+    key: "Billing",
+    value: "Invoiced by hand in v1",
+    note: "No card on file, no automatic renewal. Card payments are being built.",
+  },
+];
+
+function SpecSheet() {
+  return (
+    <section
+      aria-labelledby="facts-heading"
+      className={`${SHELL} py-[var(--space-2xl)] md:py-[var(--space-3xl)]`}
+    >
+      <h2
+        id="facts-heading"
+        className="max-w-[24ch] font-display text-[length:var(--text-display)] font-medium tracking-tight"
+      >
+        Things you can check before you commit.
+      </h2>
+
+      <dl className="mt-[var(--space-xl)] divide-y divide-border border-y border-border">
+        {FACTS.map((f) => (
+          <div
+            key={f.key}
+            className="grid gap-1 py-[var(--space-md)] md:grid-cols-12 md:items-baseline md:gap-[var(--space-md)]"
+          >
+            <dt className="text-sm text-muted-foreground md:col-span-3">{f.key}</dt>
+            <dd className="text-sm font-medium md:col-span-4">{f.value}</dd>
+            <dd className="text-sm leading-relaxed text-muted-foreground md:col-span-5">
+              {f.note}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+/* The honest gap ----------------------------------------------------------
+ * A sales page that names its own gaps is unusual. It is also the strongest
+ * signal available to a product with no customer list yet: the shipped column
+ * reads as a fact rather than a wish list precisely because this column
+ * exists beside it. Both are rendered from one shared source, and the visual
+ * languages are deliberately different — solid rule and a tick for what runs,
+ * dashed rule and a clock for what does not — so no one skimming can mistake
+ * one for the other.
+ * ------------------------------------------------------------------------ */
+
+function NotYetOn() {
+  return (
+    <section aria-labelledby="inventory-heading" className="border-t border-border bg-secondary/40">
+      <div className={`${SHELL} py-[var(--space-2xl)] md:py-[var(--space-3xl)]`}>
+        <h2
+          id="inventory-heading"
+          className="max-w-[24ch] font-display text-[length:var(--text-display)] font-medium tracking-tight"
+        >
+          Everything in it, and everything not in it yet.
+        </h2>
+
+        <div className="mt-[var(--space-xl)] grid gap-[var(--space-xl)] lg:grid-cols-12 lg:gap-[var(--space-2xl)]">
+          <div className="lg:col-span-7">
+            <div className="flex items-baseline gap-[var(--space-sm)]">
+              <h3 className="font-display text-[length:var(--text-display-s)] font-medium">
+                Working today
+              </h3>
+              <span className="tnum text-sm text-muted-foreground">{LIVE.length}</span>
+            </div>
+            <ul className="mt-[var(--space-md)] grid gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-2">
+              {LIVE.map((c) => (
+                <li
+                  key={c.title}
+                  className="flex items-start gap-[var(--space-xs)] bg-card p-[var(--space-sm)]"
+                >
+                  <Check
+                    aria-hidden="true"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-status-live)]"
+                  />
+                  <span className="min-w-0 text-sm leading-snug">{c.title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-5">
+            <div className="flex items-baseline gap-[var(--space-sm)]">
+              <h3 className="font-display text-[length:var(--text-display-s)] font-medium text-muted-foreground">
+                Built, not yet switched on
+              </h3>
+              <span className="tnum text-sm text-muted-foreground">{UPCOMING.length}</span>
+            </div>
+            <p className="mt-[var(--space-xs)] max-w-[52ch] text-sm text-muted-foreground">
+              These exist in the product and are not running. Do not budget for them yet.
+            </p>
+            <ul className="mt-[var(--space-md)] space-y-[var(--space-sm)]">
+              {UPCOMING.map((c) => (
+                <li
+                  key={c.title}
+                  className="rounded-[var(--radius)] border border-dashed border-border p-[var(--space-md)]"
+                >
+                  <div className="flex items-start gap-[var(--space-xs)]">
+                    <Clock
+                      aria-hidden="true"
+                      className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-status-upcoming)]"
+                    />
+                    <div className="min-w-0">
+                      <h4 className="font-display text-base font-medium leading-snug text-muted-foreground">
+                        {c.title}
+                      </h4>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        {c.detail}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* Plans -------------------------------------------------------------------
+ * Every figure here is read from `@/lib/plan-limits`, which is the same
+ * module the platform admin tool writes onto a brand and the same numbers the
+ * database enforces with a trigger. The page that used to sit here quoted
+ * five and twenty staff seats against real limits of three and ten, so an
+ * owner would have hit a wall two seats early on the plan they were sold.
+ * A marketing page must not hold its own copy of a number the product
+ * enforces.
+ * ------------------------------------------------------------------------ */
+
+const TIERS: PlanTier[] = ["starter", "growth", "enterprise"];
+
+const UNLIMITED = 999;
+
+function planScope(tier: PlanTier) {
+  const { locations, staff } = PLAN_LIMITS[tier];
+  const loc =
+    locations >= UNLIMITED
+      ? "Unlimited locations"
+      : `${locations} ${locations === 1 ? "location" : "locations"}`;
+  const seats = staff >= UNLIMITED ? "unlimited staff" : `${staff} staff accounts`;
+  return `${loc} · ${seats}`;
+}
+
+function Plans() {
+  return (
+    <section
+      id="plans"
+      aria-labelledby="plans-heading"
+      className={`${SHELL} scroll-mt-[var(--space-lg)] py-[var(--space-2xl)] md:py-[var(--space-3xl)]`}
+    >
+      <h2
+        id="plans-heading"
+        className="max-w-[20ch] font-display text-[length:var(--text-display)] font-medium tracking-tight"
+      >
+        Three plans, by how many chairs you run.
+      </h2>
+      <p className="mt-[var(--space-sm)] max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
+        Staff accounts are counted apart from your own Owner login, and the limits are enforced by
+        the database — so a plan cannot quietly be exceeded. Invoiced by hand in QAR while v1
+        settles; no card is stored.
+      </p>
+
+      <div className="mt-[var(--space-xl)] grid gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border md:grid-cols-3">
+        {TIERS.map((tier) => {
+          const plan = PLAN_LIMITS[tier];
+          const priced = !/contact|custom/i.test(plan.priceMonthly);
+          return (
+            <div key={tier} className="flex flex-col bg-card p-[var(--space-lg)]">
+              <h3 className="font-display text-[length:var(--text-display-s)] font-medium">
+                {plan.label}
+              </h3>
+              <p className="mt-[var(--space-2xs)] text-sm text-muted-foreground">
+                {planScope(tier)}
               </p>
 
-              <div
-                className={`my-6 h-px ${t.featured ? "bg-white/15" : "bg-border"}`}
-              />
+              <p className="mt-[var(--space-md)] flex items-baseline gap-[var(--space-2xs)]">
+                <span className="tnum font-display text-[length:var(--text-display)] font-medium leading-none [overflow-wrap:normal]">
+                  {priced ? `QAR ${plan.priceMonthly}` : plan.priceMonthly}
+                </span>
+                {priced && <span className="text-sm text-muted-foreground">/month</span>}
+              </p>
 
-              <ul className="space-y-3">
-                {t.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm">
+              <ul className="mt-[var(--space-lg)] flex-1 space-y-[var(--space-sm)]">
+                {PLAN_FEATURES[tier].map((f) => (
+                  <li key={f} className="flex items-start gap-[var(--space-xs)]">
                     <Check
-                      className={`mt-0.5 h-4 w-4 shrink-0 ${
-                        t.featured ? "text-primary" : "text-primary"
-                      }`}
+                      aria-hidden="true"
+                      className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-status-live)]"
                     />
-                    <span className={t.featured ? "text-white/85" : "text-foreground/80"}>
-                      {f}
-                    </span>
+                    <span className="min-w-0 text-sm leading-snug">{f}</span>
                   </li>
                 ))}
               </ul>
@@ -383,37 +573,65 @@ function Pricing() {
               <Link
                 to="/auth"
                 search={{ mode: "signup" }}
-                className={`mt-8 inline-flex h-11 items-center justify-center text-xs font-semibold uppercase tracking-[0.18em] transition-colors ${
-                  t.featured
-                    ? "bg-primary text-primary-foreground hover:bg-rose-gold-deep"
-                    : "border border-foreground text-foreground hover:bg-foreground hover:text-background"
-                }`}
+                className={`mt-[var(--space-lg)] ${BUTTON_QUIET}`}
               >
-                Get Started
+                Start on {plan.label}
               </Link>
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </section>
   );
 }
 
-/* --------------------------------- Footer -------------------------------- */
+/* Closing CTA · one button, deliberately ---------------------------------- */
+
+function ClosingCta() {
+  return (
+    <section className="border-t border-border bg-secondary/40">
+      <div
+        className={`${SHELL} flex flex-col items-start gap-[var(--space-lg)] py-[var(--space-2xl)] md:flex-row md:items-center md:justify-between`}
+      >
+        <p className="max-w-[42ch] font-display text-[length:var(--text-display-s)] font-medium tracking-tight">
+          Bring one branch across first. The rest can follow when it has earned it.
+        </p>
+        <Link to="/auth" search={{ mode: "signup" }} className={`shrink-0 ${BUTTON_PRIMARY}`}>
+          Request access
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/* Footer · Ft1 mast-headed ------------------------------------------------
+ * One band: wordmark, a line of what it is, two quiet links. The app's own
+ * pages keep the tighter Ft2 inline rule; a public page carries slightly more
+ * because a visitor arriving cold has somewhere to go next. Not four columns
+ * of links to pages that do not exist.
+ * ------------------------------------------------------------------------ */
 
 function SiteFooter() {
   return (
-    <footer className="border-t border-border/60 bg-sand-deep">
-      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-6 py-10 md:flex-row md:items-center md:px-8">
-        <div className="flex items-center gap-2.5">
-          <Logo size={28} />
-          <span className="font-display text-lg font-medium">
-            Q-Salon <span className="italic text-primary">Suite</span>
+    <footer className="border-t border-border">
+      <div className={`${SHELL} py-[var(--space-xl)]`}>
+        <Wordmark size={26} />
+        <p className="mt-[var(--space-sm)] max-w-[46ch] text-sm text-muted-foreground">
+          Salon management for Qatar — built in Doha, priced in riyals.
+        </p>
+
+        <div className="mt-[var(--space-lg)] flex flex-wrap items-center gap-x-[var(--space-lg)] gap-y-[var(--space-xs)] border-t border-border pt-[var(--space-md)]">
+          <Link to="/auth" className={LINK_QUIET}>
+            Sign in
+          </Link>
+          <a href="#plans" className={LINK_QUIET}>
+            Plans
+          </a>
+          <span className="ms-auto text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Q-Salon Suite
           </span>
         </div>
-        <p className="text-sm text-foreground/60">
-          © {new Date().getFullYear()} Q-Salon Suite · Crafted in Doha · صُنع بعناية
-        </p>
       </div>
     </footer>
   );

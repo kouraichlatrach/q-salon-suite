@@ -58,6 +58,21 @@
   --color-sand-deep: #f0ebe3;
   --color-rose-gold: #c58f66;
   --color-rose-gold-deep: #b07d56;
+
+  /* Rose gold, deep enough to carry white text.
+     Measured: white on --primary oklch(0.68 0.075 55) is 2.94:1, and on
+     --color-rose-gold-deep (#b07d56) 3.55:1 — both under the 4.5:1 floor for
+     a 14px button label. This pair is 4.83:1 and 6.1:1 respectively. Chroma is
+     raised alongside the drop in lightness so it still reads as rose gold and
+     not as brown. Use for any accent surface carrying text; --primary stays as
+     it is for tints, borders and marks that carry none.
+
+     Named `-press` rather than `-fill-hover` deliberately: Tailwind could not
+     resolve `bg-accent-fill-hover`, because the name is a prefix-extension of
+     `--color-accent-fill` and the utility parser had no way to tell where the
+     token name ended. The rule silently did not generate. */
+  --color-accent-fill: oklch(0.56 0.11 55);
+  --color-accent-press: oklch(0.5 0.115 55);
   --color-charcoal: #32353a;
   --color-steel: #e5dfd5;
 
@@ -229,6 +244,13 @@
   --text-stat: clamp(2rem, 1.4rem + 2.4vw, 3.25rem);
   --text-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
   --text-display-s: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
+
+  /* --text-hero is public-page only. App pages never need it: --text-display
+     is already the largest thing a staff member should meet twenty times a
+     day, and a landing page addressing a stranger has one chance to be read
+     across the room. Sized for a headline of ~35 characters — anything much
+     longer should be rewritten shorter rather than stepped down here. */
+  --text-hero: clamp(2.25rem, 1.55rem + 3.1vw, 4rem);
 
   /* Motion. This is a motion-cut project (no animation library installed), so
      these cover state transitions only — nothing decorative. */

@@ -1,10 +1,27 @@
 [
   {
+    "date": "2026-08-04",
+    "scope": "page",
+    "macrostructure": "Narrative Workflow",
+    "theme": "custom",
+    "theme_axes": "light / high-contrast-serif / warm",
+    "vibe": "warm sand, rose gold, quiet operational",
+    "nav": "N9 edge-aligned minimal",
+    "footer": "Ft1 mast-headed",
+    "enrichment": "none",
+    "design_system": "design.md",
+    "brief": "Q-Salon Suite · public marketing/landing page (/) — Qatar salon owners evaluating signup",
+    "note": "Theme deliberately NOT rotated. design.md-managed project, so consistency with /app/* wins over catalog diversification; variety comes from macrostructure + nav + footer only."
+  },
+  {
     "date": "2026-08-03",
+    "scope": "app",
     "macrostructure": "Stat-Led",
     "theme": "custom",
     "theme_axes": "light / high-contrast-serif / warm",
     "vibe": "warm sand, rose gold, quiet operational",
+    "nav": "N3 side-rail",
+    "footer": "Ft2 inline rule",
     "enrichment": "none",
     "brief": "Q-Salon Suite · internal operational dashboard + app shell"
   }
