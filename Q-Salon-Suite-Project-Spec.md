@@ -18,6 +18,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 2. Plans (restructured 2026-08-05 — supersedes the original Starter/Growth/Enterprise limits): **Starter** 1 location / 10 staff, 549 QAR/mo or 5,600/yr · **Growth** 1 location / 20 staff, 849 QAR/mo or 8,660/yr · **Professional** (new tier) 3 locations / 50 staff, 1,999 QAR/mo or 20,390/yr · **Enterprise** unlimited (999/999 sentinel), no published price. Staff counts exclude the Owner. Enforced at the DB level via triggers. Figures live in `src/lib/plan-limits.ts` and are mirrored onto `brands` — never retyped into a page.
    - **Extra-location add-on:** +299 QAR/mo per location, available on Starter/Growth/Professional (not Enterprise, which is already unlimited). Stored as `brands.addon_locations`; the location ceiling is now `max_locations + addon_locations`, not `max_locations`. No self-serve purchase flow — a Platform Admin sets the count by hand after the Owner asks.
    - **Staff limits remain a hard per-tier ceiling** — no staff add-on is specced.
+   - ⚠ **Limits are mirrored onto each brand, not looked up.** Changing what a tier means does **not** reach brands already on it — they keep the numbers written at creation or last `/admin` save. Every brand created before 2026-08-05 is therefore mis-limited against the new tiers. Safe only because there are no paying customers; **see Section 12 before the first real signup.**
 3. Roles: Owner, Location Manager, Receptionist, Staff/Technician — fixed, not a custom permission builder.
 4. Clients: shared brand-wide (not siloed per location); appointments/transactions still tagged per-location.
 5. Stock: shared product catalog brand-wide; quantity tracked per-location.
@@ -342,6 +343,64 @@ Recurring client-paid subscription unlocking an ongoing benefit — depends on P
 4. **Enrollment: staff-initiated, triggered proactively.** A staff-facing prompt appears on a client's profile after their **first completed appointment**, suggesting "offer a membership" — timed to the moment a retention pitch is most likely to land, without ever bypassing actual consent-based enrollment. This is explicitly *not* automatic enrollment: a membership requires the client's real payment details and explicit consent to recurring billing, the same as any other Dibsy charge in this product — no client is ever silently opted into paid recurring billing.
 
 **New schema needed:** a membership-tier definition table (brand-scoped, benefit type, discount % or included-service config, rollover cap if applicable, price, billing interval); a client-membership-enrollment table (active tier, status, saved payment method reference, next billing date, retry-attempt tracking — mirroring Phase C's own schema needs); a mechanism on the client profile to surface the first-completed-appointment enrollment prompt (likely a simple computed flag: has one completed appointment, no active membership yet).
+
+---
+
+## 12. Pre-Launch Checklist — must be cleared before the first real customer
+
+Things that are **safe today only because there are no paying customers**. Each
+one is a live defect the moment someone signs up under the new pricing. This is
+not a roadmap; nothing here is optional.
+
+### ☐ Backfill mirrored plan limits on brands created before 2026-08-05
+
+`brands.max_locations` and `brands.max_staff_accounts` are a **snapshot written
+at plan-change time**, not a lookup. `enforce_location_plan_limit` and
+`enforce_staff_plan_limit` read those columns, not `src/lib/plan-limits.ts`. So
+redefining what a tier *means* does not reach a brand already sitting on it —
+the brand keeps whatever numbers were mirrored onto it when it was created or
+last saved in `/admin`.
+
+The 2026-08-05 restructure changed every tier, so every pre-existing brand is
+now mis-limited against its own plan. Observed live during that work: a brand
+on `growth` still carried `max_staff_accounts = 10` from the old structure
+while the pricing page advertised 20. Another brand only became correct because
+it happened to be re-saved during testing.
+
+**The failure mode is the dangerous kind — silent and in the customer's
+disfavour.** They are billed for the tier they bought, the marketing page
+promises the new allowance, and the database enforces the old smaller one. They
+hit a wall the product told them they would not hit, and nothing raises an
+alert; the trigger just refuses the insert.
+
+No backfill shipped with the restructure, deliberately: blanket-rewriting every
+brand's limits would clobber any bespoke allowance granted by hand, and with
+zero customers the safer move was to leave it explicit rather than guess.
+
+Resolve by **either**:
+- re-saving each brand in `/admin` (fine while the brand count is tiny — it
+  rewrites the limits from `PLAN_LIMITS` as a side effect of the save), **or**
+- a targeted migration that updates only brands whose stored limits still match
+  the *old* tier values exactly, leaving anything bespoke untouched.
+
+Verify afterwards that no brand's stored limits disagree with
+`PLAN_LIMITS[plan]` unless that difference is a deliberate, recorded exception.
+
+### ☐ Decide what happens to Growth brands with 2–3 locations
+
+Growth dropped from 3 locations to 1 in the same restructure. Existing Growth
+brands above the new ceiling are not broken — the location trigger only fires
+on INSERT — but they cannot add another branch. Grandfather them, issue
+complimentary `addon_locations`, or move them to Professional. Pick one before
+anyone is affected.
+
+### ☐ Re-check the billing guard after any change to brands' RLS or grants
+
+`guard_brand_billing_columns` is what makes every plan limit real rather than
+advisory (Section 4, bug class 12). Run
+`supabase/tests/billing_guard_regression.sql` after any change to `brands`
+policies, grants, or trigger set — it is the only check that catches a guard
+which fails open.
 
 ---
 
