@@ -82,6 +82,8 @@ These are lessons earned the hard way — worth checking for explicitly in every
 
 12. **`current_user` inside a `SECURITY DEFINER` function is the function's OWNER, not the caller — and a security check built on it silently exempts everybody.** The first `guard_brand_billing_columns` allowed `current_user IN ('postgres','service_role','supabase_admin')` as its "this is a trusted server-side caller" test. Because the function is `SECURITY DEFINER` and Supabase applies migrations as `postgres`, `current_user` evaluated to `'postgres'` on every invocation, so that clause was unconditionally true and the guard never blocked a single write. It passed code review, `db push` reported success, the trigger really was attached, and the schema looked entirely correct — a signed-in Owner could still set their own `max_locations` to 999. **`session_user` is no better here:** PostgREST connects as `authenticator` and then `SET`s the role, so it reads `authenticator` for `authenticated` and `service_role` alike and cannot separate them either. Identify the caller from something `SECURITY DEFINER` cannot rewrite — `auth.uid()` and the JWT's own `request.jwt.claims ->> 'role'` — or match on identity via `is_platform_admin()`. **A guard that exempts the wrong party fails open and looks exactly like a guard that works**, which is why this one needs a test that impersonates the real role rather than a review that reads the SQL: `supabase/tests/billing_guard_regression.sql` does the `SET LOCAL request.jwt.claims` + `SET LOCAL ROLE authenticated` dance and fails against the buggy version. Any future permission check in a trigger or RPC gets the same treatment.
 
+13. **An RLS *read* gap does not look like a bug — it looks like an empty list, and the UI quietly compensates in the wrong direction.** Found on 2026-08-06 while restricting bookable staff to `role = 'staff'`. `user_roles` had SELECT policies for the user's own rows, for Owners brand-wide, and for Managers at their location — and **nothing for Receptionists**; `profiles` was the same, visible to owner/manager only. So a signed-in Receptionist querying `user_roles` got back exactly one row: their own. The appointments picker filtered that with `role = 'owner' OR location_id = <loc>`, their own receptionist row matched, and the dropdown rendered a single option — themselves. Nothing errored. Nobody saw an empty state. The Receptionist simply booked every appointment against a Receptionist account, which is a substantial share of the 125 non-Staff assignments the cleanup found. **The tell was absent precisely because the UI had a fallback that happened to match the caller's own row.** Two lessons: a read policy set that omits a role is invisible until you enumerate the roles explicitly, and tightening a UI filter over a too-narrow RLS view converts "silently wrong" into "silently empty" — the second failure was one line away and would also have shipped. Fixed by two narrow SELECT policies granting booking-capable roles sight of *staff-role rows only*, at locations they already administer. Covered by `supabase/tests/bookable_staff_regression.sql`, which impersonates a real Receptionist session rather than reading the policy SQL.
+
 ---
 
 ## 5. Self-Booking Portal — Shipped & Verified
@@ -393,6 +395,23 @@ brands above the new ceiling are not broken — the location trigger only fires
 on INSERT — but they cannot add another branch. Grandfather them, issue
 complimentary `addon_locations`, or move them to Professional. Pick one before
 anyone is affected.
+
+### ☐ Decide what to do with 103 historical appointments assigned to non-Staff
+
+The 2026-08-06 bookable-staff restriction deleted the 22 **scheduled** appointments
+assigned to an Owner/Manager/Receptionist, but deliberately kept the 103
+historical ones (completed / cancelled / no_show). Deleting those would have
+cascaded into `income_records` — 67 rows, 11,886.21 QAR, roughly half of all
+recorded revenue — because `income_records.appointment_id` is `ON DELETE
+CASCADE`.
+
+They are harmless to booking: the trigger only fires on INSERT/UPDATE of the
+assignment, so nothing can re-assign them and nothing new can join them. But
+**per-staff Reports still attribute that revenue to people who are not staff**,
+which will read as nonsense the moment a real Owner opens Reports. Either
+reassign them to genuine Staff accounts, exclude non-Staff assignees from the
+staff-performance report, or accept it as seed-data noise and wipe the test
+brands before launch. This is only cosmetic while the data is fake.
 
 ### ☐ Re-check the billing guard after any change to brands' RLS or grants
 
