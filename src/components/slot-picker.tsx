@@ -116,7 +116,7 @@ export function SlotPicker({
               onClick={() => setDayOffset(i)}
               className={`min-w-[4.5rem] shrink-0 rounded-xl border px-3 py-2.5 text-center transition-colors ${
                 active
-                  ? "border-primary bg-primary text-primary-foreground"
+                  ? "border-accent-fill bg-accent-fill text-primary-foreground"
                   : "border-border bg-card hover:border-primary/50"
               }`}
             >

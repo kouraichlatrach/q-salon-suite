@@ -8,7 +8,9 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground shadow hover:bg-primary/80",
+        // 12px semibold label, so it needs the full 4.5:1, not the large-text 3:1.
+        default:
+          "border-transparent bg-accent-fill text-primary-foreground shadow hover:bg-accent-press",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:

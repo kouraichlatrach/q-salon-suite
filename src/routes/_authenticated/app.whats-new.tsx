@@ -2,13 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Check, Clock } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { LIVE, UPCOMING } from "@/lib/capabilities";
 
 export const Route = createFileRoute("/_authenticated/app/whats-new")({
   head: () => ({
-    meta: [
-      { title: "What's in Q-Salon Suite" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "What's in Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: WhatsNewPage,
 });
@@ -21,90 +19,11 @@ export const Route = createFileRoute("/_authenticated/app/whats-new")({
  * undifferentiated feature list would be a promise the product can't keep —
  * a receptionist who reads "WhatsApp reminders" as live will stop phoning
  * clients, and the reminders won't go.
+ *
+ * The two lists themselves now live in `@/lib/capabilities`, because the public
+ * landing page renders the same split for prospects. Keeping one copy means a
+ * feature can never be "not yet switched on" here and "working today" there.
  */
-
-type Capability = { title: string; detail: string };
-
-const LIVE: Capability[] = [
-  {
-    title: "Multi-location management",
-    detail:
-      "One brand, many locations. Staff, stock and reporting stay scoped to the branch they belong to. Unlimited locations on Enterprise.",
-  },
-  {
-    title: "Four role levels",
-    detail:
-      "Owner, Manager, Receptionist and Staff. Each sees only what their role needs — a technician sees their own day, not the salon's revenue.",
-  },
-  {
-    title: "Appointments",
-    detail:
-      "Double-booking is blocked at the database, not just the screen. Staff working hours and approved leave are respected when offering a slot.",
-  },
-  {
-    title: "Client records",
-    detail:
-      "Profiles are shared across the whole brand, so a client is the same person at every branch. Visit history, per-visit service notes and no-show count travel with them.",
-  },
-  {
-    title: "Stock and inventory",
-    detail:
-      "One product catalogue, quantities tracked per location. Completing a service deducts what it used automatically.",
-  },
-  {
-    title: "Services and pricing",
-    detail:
-      "A shared service catalogue with per-location price overrides that only an Owner can set.",
-  },
-  {
-    title: "Self-booking portal",
-    detail:
-      "A public booking page per brand, with phone verification and live availability computed from real staff schedules.",
-  },
-  {
-    title: "Booking deposits",
-    detail:
-      "Per service, flat or percentage, optional or required. Cancellations inside the window are refunded automatically.",
-  },
-  {
-    title: "Gift cards",
-    detail:
-      "Sold at the counter, redeemable in parts across several visits until the balance runs out.",
-  },
-  {
-    title: "Packages",
-    detail:
-      "Prepaid bundles of several services. At checkout the system spots a client's remaining sessions and offers to use one.",
-  },
-  {
-    title: "Reports",
-    detail:
-      "Revenue, stock and staff performance — scoped to what your role is allowed to see.",
-  },
-  {
-    title: "Built for Qatar",
-    detail:
-      "QAR throughout, Arabic-capable client and service fields, and a week that starts on Sunday like the working week does.",
-  },
-];
-
-const UPCOMING: Capability[] = [
-  {
-    title: "WhatsApp confirmations and reminders",
-    detail:
-      "Consent capture, opt-out and scheduling are built and working. The messages themselves are waiting on an upgraded WhatsApp Business account — until that lands, nothing is sent.",
-  },
-  {
-    title: "In-salon digital checkout",
-    detail:
-      "Charging a client by QR code or a WhatsApp payment link, instead of logging the payment by hand.",
-  },
-  {
-    title: "Memberships",
-    detail:
-      "Recurring client subscriptions — a monthly fee for a discount or a set of included services.",
-  },
-];
 
 function WhatsNewPage() {
   return (
@@ -122,8 +41,8 @@ function WhatsNewPage() {
           What this suite does
         </h1>
         <p className="mt-[var(--space-sm)] max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
-          Everything below either works today or is honestly marked as not yet
-          switched on. Nothing in the first list is a promise.
+          Everything below either works today or is honestly marked as not yet switched on. Nothing
+          in the first list is a promise.
         </p>
 
         <section aria-labelledby="live-heading" className="mt-[var(--space-2xl)]">
@@ -134,9 +53,7 @@ function WhatsNewPage() {
             >
               Working today
             </h2>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {LIVE.length}
-            </span>
+            <span className="text-xs tabular-nums text-muted-foreground">{LIVE.length}</span>
           </div>
 
           <ul className="mt-[var(--space-md)] grid gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-2">
@@ -148,12 +65,8 @@ function WhatsNewPage() {
                     className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-status-live)]"
                   />
                   <div className="min-w-0">
-                    <h3 className="font-display text-base font-medium leading-snug">
-                      {c.title}
-                    </h3>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {c.detail}
-                    </p>
+                    <h3 className="font-display text-base font-medium leading-snug">{c.title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{c.detail}</p>
                   </div>
                 </div>
               </li>
@@ -172,13 +85,11 @@ function WhatsNewPage() {
             >
               Built, not yet switched on
             </h2>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {UPCOMING.length}
-            </span>
+            <span className="text-xs tabular-nums text-muted-foreground">{UPCOMING.length}</span>
           </div>
           <p className="mt-[var(--space-xs)] max-w-[60ch] text-sm text-muted-foreground">
-            These exist in the product but are not running for your salon yet.
-            Don't rely on them with clients.
+            These exist in the product but are not running for your salon yet. Don't rely on them
+            with clients.
           </p>
 
           <ul className="mt-[var(--space-md)] space-y-[var(--space-sm)]">
@@ -196,9 +107,7 @@ function WhatsNewPage() {
                     <h3 className="font-display text-base font-medium leading-snug text-muted-foreground">
                       {c.title}
                     </h3>
-                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                      {c.detail}
-                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{c.detail}</p>
                   </div>
                 </div>
               </li>

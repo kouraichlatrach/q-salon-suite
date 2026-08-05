@@ -20,6 +20,8 @@
   --text-stat: clamp(2rem, 1.4rem + 2.4vw, 3.25rem);
   --text-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
   --text-display-s: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
+  /* Public/marketing pages only — see design.md § Per-page allowances. */
+  --text-hero: clamp(2.25rem, 1.55rem + 3.1vw, 4rem);
 
   /* ---- Colour · light -------------------------------------------------- */
   /* Warm Sand paper, Charcoal ink, Rose Gold accent. Neutrals are tinted
@@ -38,6 +40,20 @@
   --muted-foreground: oklch(0.5 0.008 60);
   --accent: oklch(0.68 0.075 55);
   --accent-foreground: oklch(1 0 0);
+
+  /* Accent surfaces that carry text. White on --primary is 2.94:1, under the
+     4.5:1 floor; this pair measures 4.83:1 and 6.1:1. Chroma rises as
+     lightness falls so it still reads rose gold rather than brown. */
+  --color-accent-fill: oklch(0.56 0.11 55);
+  --color-accent-press: oklch(0.5 0.115 55);
+
+  /* Marketing surfaces only (atmospheric-on-light-paper). App pages must not
+     use these — see design.md § Genre and § Motion. */
+  --bloom-warm: oklch(0.68 0.075 55 / 0.13);
+  --bloom-sand: oklch(0.86 0.045 75 / 0.5);
+  --dur-reveal: 620ms;
+  --dur-entrance: 420ms;
+  --stagger: 80ms;
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(1 0 0);
   --success: oklch(0.62 0.12 155);

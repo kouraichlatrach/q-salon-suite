@@ -58,6 +58,21 @@
   --color-sand-deep: #f0ebe3;
   --color-rose-gold: #c58f66;
   --color-rose-gold-deep: #b07d56;
+
+  /* Rose gold, deep enough to carry white text.
+     Measured: white on --primary oklch(0.68 0.075 55) is 2.94:1, and on
+     --color-rose-gold-deep (#b07d56) 3.55:1 — both under the 4.5:1 floor for
+     a 14px button label. This pair is 4.83:1 and 6.1:1 respectively. Chroma is
+     raised alongside the drop in lightness so it still reads as rose gold and
+     not as brown. Use for any accent surface carrying text; --primary stays as
+     it is for tints, borders and marks that carry none.
+
+     Named `-press` rather than `-fill-hover` deliberately: Tailwind could not
+     resolve `bg-accent-fill-hover`, because the name is a prefix-extension of
+     `--color-accent-fill` and the utility parser had no way to tell where the
+     token name ended. The rule silently did not generate. */
+  --color-accent-fill: oklch(0.56 0.11 55);
+  --color-accent-press: oklch(0.5 0.115 55);
   --color-charcoal: #32353a;
   --color-steel: #e5dfd5;
 
@@ -159,7 +174,8 @@
     border-color: var(--color-border);
   }
 
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -196,7 +212,8 @@
     font-family: var(--font-serif);
   }
 
-  input, textarea {
+  input,
+  textarea {
     font-feature-settings: "kern", "liga";
   }
 }
@@ -230,6 +247,13 @@
   --text-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
   --text-display-s: clamp(1.25rem, 1.1rem + 0.7vw, 1.5rem);
 
+  /* --text-hero is public-page only. App pages never need it: --text-display
+     is already the largest thing a staff member should meet twenty times a
+     day, and a landing page addressing a stranger has one chance to be read
+     across the room. Sized for a headline of ~35 characters — anything much
+     longer should be rewritten shorter rather than stepped down here. */
+  --text-hero: clamp(2.25rem, 1.55rem + 3.1vw, 4rem);
+
   /* Motion. This is a motion-cut project (no animation library installed), so
      these cover state transitions only — nothing decorative. */
   --dur-fast: 120ms;
@@ -251,6 +275,31 @@
   --color-focus: oklch(0.55 0.13 55);
 
   --rule-hairline: 1px solid var(--border);
+
+  /* ---- Marketing surfaces (public pages only) -------------------------
+   * design.md § Genre runs marketing pages as atmospheric-on-light-paper.
+   * These tokens exist only for `/`; app pages must not reach for them.
+   * ------------------------------------------------------------------- */
+
+  /* Warm blooms on the canvas. Chroma is deliberately low — at full accent
+     strength this reads as a coloured background, which the accent rule
+     forbids. Atmospheric loosens the footprint cap, not the taste. */
+  --bloom-warm: oklch(0.68 0.075 55 / 0.13);
+  --bloom-sand: oklch(0.86 0.045 75 / 0.5);
+
+  /* Motion. Longer than the app's --dur-base because these run once, on a
+     page read at the visitor's pace rather than twenty times a day.
+
+     The five hero elements stagger at --stagger and each run --dur-entrance,
+     so the whole arrival finishes at 4×80 + 420 = 740ms — inside the 0.4–0.8s
+     window a single orchestrated entrance is allowed. Per element that is
+     longer than the ~220ms a UI state change should take, and deliberately:
+     220ms on a warm fade reads as a flicker, and this genre's whole motion
+     vocabulary is one slow fade. Raising either value pushes the total past
+     the window, so change them together. */
+  --dur-reveal: 620ms;
+  --dur-entrance: 420ms;
+  --stagger: 80ms;
 }
 
 @layer base {
@@ -279,6 +328,51 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Marketing-page motion. Public pages only — see design.md § Motion.
+ *
+ * Fade only: no slide, no scale, no parallax. Opacity is the one property
+ * that can't cause layout thrash or reading-position drift, and atmospheric
+ * asks for arrival rather than movement.
+ *
+ * Both patterns start at opacity 0 and are switched on by a `data-` attribute
+ * rather than a class toggle, so the resting state is expressible in markup
+ * and there is no flash of styled-then-hidden content.
+ * ------------------------------------------------------------------------- */
+@layer components {
+  /* Hero entrance. Runs on load, staggered by --i (set per element inline).
+     No observer involved — the hero is above the fold by definition. */
+  [data-entrance] {
+    opacity: 0;
+    animation: qss-fade-in var(--dur-entrance) var(--ease-out) forwards;
+    animation-delay: calc(var(--i, 0) * var(--stagger));
+  }
+
+  /* Scroll reveal — progressive enhancement, deliberately.
+   *
+   * The resting state is VISIBLE: markup ships with no `data-reveal`
+   * attribute at all, so server-rendered HTML is readable before any script
+   * runs. Only the client hook adds `pending` (and only to blocks genuinely
+   * below the fold), then flips to `in`.
+   *
+   * The inverse — resting at opacity 0 and depending on JS to reveal — hides
+   * the page's main content from anyone whose JS fails, is slow, or is
+   * blocked. Content must never depend on an animation running. */
+  [data-reveal="pending"] {
+    opacity: 0;
+  }
+  [data-reveal="in"] {
+    opacity: 1;
+    transition: opacity var(--dur-reveal) var(--ease-out);
+  }
+}
+
+@keyframes qss-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -287,5 +381,14 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The blanket rule above only shortens animations — an element resting at
+     opacity 0 would stay invisible. Pin both patterns fully visible instead,
+     so reduced-motion means "no movement", never "no content". */
+  [data-entrance],
+  [data-reveal] {
+    opacity: 1 !important;
+    animation: none !important;
   }
 }
