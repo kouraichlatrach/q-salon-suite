@@ -128,11 +128,17 @@ END $$;
 ROLLBACK;
 
 -- ---------------------------------------------------------------------------
--- 6. The billing-column guard — must be run as a real Owner, not as postgres.
+-- 6. The billing-column guard — see billing_guard_regression.sql
 -- ---------------------------------------------------------------------------
--- The guard exempts superuser/service_role deliberately, so running the check
--- above as `postgres` proves nothing about it. Verify from the browser instead,
--- signed in as a salon Owner (NOT a platform admin), in the devtools console:
+-- Moved to its own file and made a permanent regression test, after the first
+-- version of the guard shipped and blocked nothing at all (Section 4, bug
+-- class 12). That test impersonates a real Owner with
+-- `SET LOCAL request.jwt.claims` + `SET LOCAL ROLE authenticated`, which is the
+-- only way to catch a guard that exempts the wrong party.
+--
+-- The browser walkthrough below stays useful as an end-to-end confirmation
+-- through PostgREST, but it is no longer the only line of defence. Signed in
+-- as a salon Owner (NOT a platform admin), in the devtools console:
 --
 --   const { data: b } = await supabase.from('brands').select('id, max_locations').single();
 --   await supabase.from('brands').update({ max_locations: 999 }).eq('id', b.id);
