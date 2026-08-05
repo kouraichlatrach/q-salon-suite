@@ -46,6 +46,14 @@
      lightness falls so it still reads rose gold rather than brown. */
   --color-accent-fill: oklch(0.56 0.11 55);
   --color-accent-press: oklch(0.5 0.115 55);
+
+  /* Marketing surfaces only (atmospheric-on-light-paper). App pages must not
+     use these — see design.md § Genre and § Motion. */
+  --bloom-warm: oklch(0.68 0.075 55 / 0.13);
+  --bloom-sand: oklch(0.86 0.045 75 / 0.5);
+  --dur-reveal: 620ms;
+  --dur-entrance: 420ms;
+  --stagger: 80ms;
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(1 0 0);
   --success: oklch(0.62 0.12 155);

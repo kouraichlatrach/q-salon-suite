@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-08-05",
+    "scope": "page",
+    "macrostructure": "Split Studio",
+    "genre": "atmospheric (light-paper / Bloom exception)",
+    "theme": "custom",
+    "theme_axes": "light / high-contrast-serif / warm",
+    "vibe": "warm sand, rose gold, inviting",
+    "nav": "N5 floating pill",
+    "footer": "Ft5 statement",
+    "enrichment": "E8 hero photography (3 stock images, no polish pattern)",
+    "motion": "hero entrance (staggered opacity, 740ms) + one reveal per outcome block",
+    "design_system": "design.md",
+    "brief": "Q-Salon Suite · public marketing/landing page (/) — pass 2, warmer and persuasive",
+    "note": "Replaces the Narrative Workflow pass, which was accurate but read as documentation and put the honesty disclosures beside the pitch. Theme still NOT rotated — design.md project, consistency with /app/* wins. Genre split by audience instead: app pages stay modern-minimal, marketing goes atmospheric."
+  },
+  {
     "date": "2026-08-04",
     "scope": "page",
     "macrostructure": "Narrative Workflow",
@@ -11,7 +27,7 @@
     "enrichment": "none",
     "design_system": "design.md",
     "brief": "Q-Salon Suite · public marketing/landing page (/) — Qatar salon owners evaluating signup",
-    "note": "Theme deliberately NOT rotated. design.md-managed project, so consistency with /app/* wins over catalog diversification; variety comes from macrostructure + nav + footer only."
+    "note": "Superseded by the 2026-08-05 Split Studio pass."
   },
   {
     "date": "2026-08-03",

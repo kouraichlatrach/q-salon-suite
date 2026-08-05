@@ -252,6 +252,7 @@ export type Database = {
           gift_card_expiry_months: number
           id: string
           max_advance_days: number
+          addon_locations: number
           max_locations: number
           max_staff_accounts: number
           min_notice_hours: number
@@ -277,6 +278,7 @@ export type Database = {
           gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
+          addon_locations?: number
           max_locations?: number
           max_staff_accounts?: number
           min_notice_hours?: number
@@ -302,6 +304,7 @@ export type Database = {
           gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
+          addon_locations?: number
           max_locations?: number
           max_staff_accounts?: number
           min_notice_hours?: number
@@ -2239,7 +2242,7 @@ export type Database = {
       payment_method: "cash" | "card" | "bank_transfer"
       payment_state: "pending" | "succeeded" | "failed" | "cancelled"
       stock_movement_type: "restock" | "usage" | "waste" | "adjustment"
-      subscription_plan: "starter" | "growth" | "enterprise"
+      subscription_plan: "starter" | "growth" | "professional" | "enterprise"
       subscription_status: "active" | "expiring" | "expired" | "trial"
     }
     CompositeTypes: {
@@ -2388,7 +2391,7 @@ export const Constants = {
       payment_method: ["cash", "card", "bank_transfer"],
       payment_state: ["pending", "succeeded", "failed", "cancelled"],
       stock_movement_type: ["restock", "usage", "waste", "adjustment"],
-      subscription_plan: ["starter", "growth", "enterprise"],
+      subscription_plan: ["starter", "growth", "professional", "enterprise"],
       subscription_status: ["active", "expiring", "expired", "trial"],
     },
   },

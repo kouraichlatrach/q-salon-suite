@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { errorMessage } from "@/lib/error-message";
 import { useTenant } from "@/hooks/use-tenant";
-import { PLAN_LIMITS, PLAN_FEATURES, type PlanTier } from "@/lib/plan-limits";
+import { PLAN_LIMITS, PLAN_FEATURES, PLAN_ORDER, type PlanTier } from "@/lib/plan-limits";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,9 +117,7 @@ function Onboarding() {
                 >
                   {step > n ? <Check className="h-4 w-4" /> : n}
                 </div>
-                {n < 3 && (
-                  <div className={`h-px flex-1 ${step > n ? "bg-accent" : "bg-border"}`} />
-                )}
+                {n < 3 && <div className={`h-px flex-1 ${step > n ? "bg-accent" : "bg-border"}`} />}
               </div>
             ))}
           </div>
@@ -166,8 +164,10 @@ function Onboarding() {
                 You can change plans anytime. Billed offline via bank transfer.
               </p>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {(Object.keys(PLAN_LIMITS) as PlanTier[]).map((p) => {
+            {/* PLAN_ORDER, not Object.keys: key order is not a contract, and
+                a fourth tier landing in the wrong place reads as a bug. */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {PLAN_ORDER.map((p) => {
                 const info = PLAN_LIMITS[p];
                 const selected = plan === p;
                 return (
@@ -210,9 +210,7 @@ function Onboarding() {
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-2xl">Add your first location</CardTitle>
-              <CardDescription>
-                You can add more locations later from settings.
-              </CardDescription>
+              <CardDescription>You can add more locations later from settings.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
