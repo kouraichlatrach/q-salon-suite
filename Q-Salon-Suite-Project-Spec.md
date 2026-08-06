@@ -440,14 +440,23 @@ per-caller-condition. So the photo lives in `staff_photos` (brand-wide read,
 Owner/Manager write) and `staff_personal_details` holds only the sensitive tier.
 Anyone tempted to "simplify" these back into one table should read this twice.
 
-**Manager PII scope is tighter than the brief specified.** The brief said
-Owner/Manager of the staff member's *brand*. Brand-scoping Managers would let the
-Manager of one branch read the QID, home address and DOB of a stylist at another
-branch they have never met, which is hard to defend under the PDPPL's
-data-minimisation posture. `can_view_staff_pii()` therefore gives Owners
-brand-wide access and Managers their own location only. One function, called by
-all four policies *and* by the UI, so the page and the database can never
-disagree about who may see a national ID.
+**Manager PII scope is location-only, and this is settled — not an oversight.**
+The original brief said Owner/Manager of the staff member's *brand*. Brand-scoping
+Managers would let the Manager of one branch read the QID, home address and DOB
+of a stylist at another branch they have never met, which is hard to defend under
+the PDPPL's data-minimisation posture. `can_view_staff_pii()` therefore gives
+Owners brand-wide access and Managers their own location only. One function,
+called by all four policies *and* by the UI, so the page and the database can
+never disagree about who may see a national ID.
+
+⚠ **Confirmed by the owner on 2026-08-06, after the deviation was flagged.** It
+reads like a bug against the original brief and it is not one. Do not "restore"
+brand-wide Manager access on the strength of the brief text alone — widening this
+is a decision about real people's identity documents, not a spec-conformance fix.
+If it is ever genuinely wanted, it is a one-line change to `can_view_staff_pii()`
+and it needs its own explicit sign-off, because the reverse direction —
+discovering it was too broad once a real salon's staff records are in the table —
+cannot be undone.
 
 **`photo_path`, not `photo_url`.** The bucket is private, so the only URL that
 could be stored is a signed one — and signed URLs expire. Persisting one persists
