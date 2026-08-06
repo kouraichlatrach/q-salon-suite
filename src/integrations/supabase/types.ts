@@ -1053,6 +1053,7 @@ export type Database = {
         Row: {
           brand_id: string
           created_at: string
+          current_addon_locations: number
           current_plan: Database["public"]["Enums"]["subscription_plan"]
           id: string
           notes: string | null
@@ -1068,6 +1069,7 @@ export type Database = {
         Insert: {
           brand_id: string
           created_at?: string
+          current_addon_locations?: number
           current_plan: Database["public"]["Enums"]["subscription_plan"]
           id?: string
           notes?: string | null
@@ -1083,6 +1085,7 @@ export type Database = {
         Update: {
           brand_id?: string
           created_at?: string
+          current_addon_locations?: number
           current_plan?: Database["public"]["Enums"]["subscription_plan"]
           id?: string
           notes?: string | null
