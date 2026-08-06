@@ -1049,6 +1049,62 @@ export type Database = {
           },
         ]
       }
+      plan_upgrade_requests: {
+        Row: {
+          brand_id: string
+          created_at: string
+          current_plan: Database["public"]["Enums"]["subscription_plan"]
+          id: string
+          notes: string | null
+          processed_at: string | null
+          processed_by: string | null
+          requested_addon_locations_delta: number | null
+          requested_by: string
+          requested_plan:
+            | Database["public"]["Enums"]["subscription_plan"]
+            | null
+          status: Database["public"]["Enums"]["plan_request_status"]
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          current_plan: Database["public"]["Enums"]["subscription_plan"]
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          requested_addon_locations_delta?: number | null
+          requested_by: string
+          requested_plan?:
+            | Database["public"]["Enums"]["subscription_plan"]
+            | null
+          status?: Database["public"]["Enums"]["plan_request_status"]
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          current_plan?: Database["public"]["Enums"]["subscription_plan"]
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          requested_addon_locations_delta?: number | null
+          requested_by?: string
+          requested_plan?:
+            | Database["public"]["Enums"]["subscription_plan"]
+            | null
+          status?: Database["public"]["Enums"]["plan_request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_upgrade_requests_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_admins: {
         Row: {
           created_at: string
@@ -2392,6 +2448,7 @@ export type Database = {
       payment_kind: "charge" | "refund"
       payment_method: "cash" | "card" | "bank_transfer"
       payment_state: "pending" | "succeeded" | "failed" | "cancelled"
+      plan_request_status: "pending" | "processed" | "declined"
       stock_movement_type: "restock" | "usage" | "waste" | "adjustment"
       subscription_plan: "starter" | "growth" | "professional" | "enterprise"
       subscription_status: "active" | "expiring" | "expired" | "trial"
@@ -2541,6 +2598,7 @@ export const Constants = {
       payment_kind: ["charge", "refund"],
       payment_method: ["cash", "card", "bank_transfer"],
       payment_state: ["pending", "succeeded", "failed", "cancelled"],
+      plan_request_status: ["pending", "processed", "declined"],
       stock_movement_type: ["restock", "usage", "waste", "adjustment"],
       subscription_plan: ["starter", "growth", "professional", "enterprise"],
       subscription_status: ["active", "expiring", "expired", "trial"],

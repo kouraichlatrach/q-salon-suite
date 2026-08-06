@@ -18,6 +18,7 @@ import { Route as BookBrandSlugRouteImport } from './routes/book.$brandSlug'
 import { Route as DevMockCheckoutRouteImport } from './routes/dev.mock-checkout'
 import { Route as ManageTokenRouteImport } from './routes/manage.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as AuthenticatedAdminRequestsRouteImport } from './routes/_authenticated/admin.requests'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAppointmentsRouteImport } from './routes/_authenticated/app.appointments'
 import { Route as AuthenticatedAppClientsRouteImport } from './routes/_authenticated/app.clients'
@@ -81,6 +82,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminRequestsRoute =
+  AuthenticatedAdminRequestsRouteImport.update({
+    id: '/requests',
+    path: '/requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -191,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/dev/mock-checkout': typeof DevMockCheckoutRoute
   '/manage/$token': typeof ManageTokenRoute
+  '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
@@ -217,6 +225,7 @@ export interface FileRoutesByTo {
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/dev/mock-checkout': typeof DevMockCheckoutRoute
   '/manage/$token': typeof ManageTokenRoute
+  '/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
@@ -247,6 +256,7 @@ export interface FileRoutesById {
   '/book/$brandSlug': typeof BookBrandSlugRouteWithChildren
   '/dev/mock-checkout': typeof DevMockCheckoutRoute
   '/manage/$token': typeof ManageTokenRoute
+  '/_authenticated/admin/requests': typeof AuthenticatedAdminRequestsRoute
   '/_authenticated/app/appointments': typeof AuthenticatedAppAppointmentsRoute
   '/_authenticated/app/clients': typeof AuthenticatedAppClientsRouteWithChildren
   '/_authenticated/app/gift-cards': typeof AuthenticatedAppGiftCardsRoute
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/book/$brandSlug'
     | '/dev/mock-checkout'
     | '/manage/$token'
+    | '/admin/requests'
     | '/app/appointments'
     | '/app/clients'
     | '/app/gift-cards'
@@ -303,6 +314,7 @@ export interface FileRouteTypes {
     | '/book/$brandSlug'
     | '/dev/mock-checkout'
     | '/manage/$token'
+    | '/admin/requests'
     | '/app/appointments'
     | '/app/clients'
     | '/app/gift-cards'
@@ -332,6 +344,7 @@ export interface FileRouteTypes {
     | '/book/$brandSlug'
     | '/dev/mock-checkout'
     | '/manage/$token'
+    | '/_authenticated/admin/requests'
     | '/_authenticated/app/appointments'
     | '/_authenticated/app/clients'
     | '/_authenticated/app/gift-cards'
@@ -425,6 +438,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/requests': {
+      id: '/_authenticated/admin/requests'
+      path: '/requests'
+      fullPath: '/admin/requests'
+      preLoaderRoute: typeof AuthenticatedAdminRequestsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/app/': {
@@ -557,11 +577,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminRequestsRoute: typeof AuthenticatedAdminRequestsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminBrandsIdRoute: typeof AuthenticatedAdminBrandsIdRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminRequestsRoute: AuthenticatedAdminRequestsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
   AuthenticatedAdminBrandsIdRoute: AuthenticatedAdminBrandsIdRoute,
 }

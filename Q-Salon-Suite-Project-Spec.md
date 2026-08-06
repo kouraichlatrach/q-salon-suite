@@ -491,4 +491,57 @@ so; it is not a bug.
 
 ---
 
+## 14. Plan Upgrade Requests — Shipped
+
+An Owner can ask for a higher tier or more location add-ons from
+`/app/settings` (Billing). A Platform Admin sees a count in the `/admin` header,
+opens `/admin/requests`, applies the change on the existing brand detail screen,
+then marks the request processed.
+
+**This table cannot change a plan, and that is the entire design.**
+`guard_brand_billing_columns` deliberately makes plan, limits, add-ons and
+billing dates unwritable by an Owner (bug class 12). The product still needed a
+way for an Owner to ask, so `plan_upgrade_requests` records intent and nothing
+else. Nothing here writes to `brands`; the only writer remains the `/admin`
+brand detail screen that `billing_guard_regression.sql` already covers.
+
+⚠ **The failure mode to guard against is a helpful-looking one.** An "Apply this
+request" button on the admin queue would be an obvious convenience and would
+reopen exactly the hole the billing guard closed, by creating a second,
+unguarded write path to the billing columns. "Mark processed" therefore closes
+the request only and says so on screen.
+`supabase/tests/plan_request_regression.sql` asserts the separation two ways:
+structurally, that no trigger on the table writes to `brands`; and behaviourally,
+from a real Owner session, that raising a request leaves every billing column
+untouched while direct writes to plan/add-ons/limits are still refused.
+
+**Other decisions worth carrying forward:**
+
+1. **`current_plan` is stamped by a trigger, not trusted from the client.** RLS
+   filters rows, not columns, so the INSERT policy cannot stop an Owner sending
+   any `current_plan` they like. A BEFORE INSERT trigger overwrites it from
+   `brands`, so the admin queue shows what the brand is actually on — the number
+   the admin will act against. The trigger reads `brands` and writes nothing.
+2. **The INSERT policy pins `status`, `processed_at` and `processed_by`.**
+   Without those clauses an Owner could insert a row that already claimed to be
+   processed. There is deliberately no UPDATE policy for Owners, so they cannot
+   approve their own request after the fact either.
+3. **Column-level `GRANT UPDATE (status, processed_at, processed_by)`** rather
+   than a table-wide grant — the lesson of bug class 10, applied up front: an
+   admin resolving a request cannot rewrite the brand, the amount asked for, or
+   the requester.
+4. **Tier ordering is not re-encoded in SQL.** The UI offers only tiers above the
+   current one using `PLAN_ORDER` from `plan-limits.ts`. The `subscription_plan`
+   enum's own ordinal order is not meaningful ('professional' was appended after
+   'enterprise'), so a SQL check would mean a second copy of the tier ranking —
+   the duplicate-source-of-truth problem `plan-limits.ts` exists to prevent.
+   Nothing is lost: a human reads every request before anything happens.
+5. **Manager, Receptionist and Staff get no access at all** — not even read. What
+   a salon pays is not roster information.
+6. **The header badge is the notification mechanism**, because there is no
+   working outbound send yet (Section 10 is blocked on a paid Twilio account).
+   When WhatsApp/email is unblocked, this is a natural second consumer.
+
+---
+
 *Update this file after each new feature is specced or shipped.*

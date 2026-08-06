@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { PLAN_LIMITS, type PlanTier } from "@/lib/plan-limits";
+import { BillingSection } from "@/components/billing-section";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
@@ -68,7 +69,9 @@ function SettingsContent() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brands")
-        .select("id, name, plan, subscription_status, renewal_date, billing_cycle, min_notice_hours, max_advance_days, deposit_hold_minutes, refund_cutoff_hours, reminder_lead_hours, whatsapp_enabled, currency, gift_card_denominations, gift_card_expiry_enabled, gift_card_expiry_months")
+        .select(
+          "id, name, plan, subscription_status, renewal_date, billing_cycle, min_notice_hours, max_advance_days, deposit_hold_minutes, refund_cutoff_hours, reminder_lead_hours, whatsapp_enabled, currency, gift_card_denominations, gift_card_expiry_enabled, gift_card_expiry_months",
+        )
         .eq("id", brandId)
         .single();
       if (error) throw error;
@@ -136,7 +139,9 @@ function SettingsContent() {
         .update({
           gift_card_denominations: denoms,
           gift_card_expiry_enabled: gcExpiryEnabled,
-          gift_card_expiry_months: gcExpiryEnabled ? months : Number(brand?.gift_card_expiry_months ?? 12),
+          gift_card_expiry_months: gcExpiryEnabled
+            ? months
+            : Number(brand?.gift_card_expiry_months ?? 12),
         })
         .eq("id", brandId);
       if (error) throw error;
@@ -196,10 +201,7 @@ function SettingsContent() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("brands")
-        .update({ name: trimmed })
-        .eq("id", brandId);
+      const { error } = await supabase.from("brands").update({ name: trimmed }).eq("id", brandId);
       if (error) throw error;
       toast.success("Settings saved");
       queryClient.invalidateQueries({ queryKey: ["brand-settings", brandId] });
@@ -214,7 +216,7 @@ function SettingsContent() {
     }
   }
 
-  const planLabel = brand ? PLAN_LIMITS[brand.plan as PlanTier]?.label ?? brand.plan : "";
+  const planLabel = brand ? (PLAN_LIMITS[brand.plan as PlanTier]?.label ?? brand.plan) : "";
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
@@ -252,6 +254,8 @@ function SettingsContent() {
         </CardContent>
       </Card>
 
+      <BillingSection brandId={brandId} />
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="font-display">Booking &amp; messaging</CardTitle>
@@ -266,29 +270,39 @@ function SettingsContent() {
             <>
               <div className="grid gap-4 sm:grid-cols-2">
                 <NumberSetting
-                  id="set-min-notice" label="Minimum notice (hours)"
+                  id="set-min-notice"
+                  label="Minimum notice (hours)"
                   hint="How soon before a slot clients can still book it."
-                  value={minNotice} onChange={setMinNotice}
+                  value={minNotice}
+                  onChange={setMinNotice}
                 />
                 <NumberSetting
-                  id="set-max-advance" label="Maximum advance (days)"
+                  id="set-max-advance"
+                  label="Maximum advance (days)"
                   hint="How far ahead the booking calendar goes."
-                  value={maxAdvance} onChange={setMaxAdvance}
+                  value={maxAdvance}
+                  onChange={setMaxAdvance}
                 />
                 <NumberSetting
-                  id="set-hold" label="Deposit hold (minutes)"
+                  id="set-hold"
+                  label="Deposit hold (minutes)"
                   hint="How long a slot is held while a deposit is unpaid."
-                  value={holdMinutes} onChange={setHoldMinutes}
+                  value={holdMinutes}
+                  onChange={setHoldMinutes}
                 />
                 <NumberSetting
-                  id="set-refund" label="Refund cutoff (hours)"
+                  id="set-refund"
+                  label="Refund cutoff (hours)"
                   hint="Cancel earlier than this for a full deposit refund."
-                  value={refundCutoff} onChange={setRefundCutoff}
+                  value={refundCutoff}
+                  onChange={setRefundCutoff}
                 />
                 <NumberSetting
-                  id="set-reminder" label="Reminder lead time (hours)"
+                  id="set-reminder"
+                  label="Reminder lead time (hours)"
                   hint="How long before the appointment the WhatsApp reminder is sent."
-                  value={reminderLead} onChange={setReminderLead}
+                  value={reminderLead}
+                  onChange={setReminderLead}
                 />
               </div>
 
@@ -305,8 +319,8 @@ function SettingsContent() {
                 <span className="text-sm">
                   <span className="font-medium">Send WhatsApp updates</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Master switch. Turning this off stops all confirmations and reminders
-                    for this brand, without changing any client's own consent.
+                    Master switch. Turning this off stops all confirmations and reminders for this
+                    brand, without changing any client's own consent.
                   </span>
                 </span>
               </label>
@@ -341,8 +355,8 @@ function SettingsContent() {
                   placeholder="100, 200, 500"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Comma-separated. These are quick-pick shortcuts only — staff can
-                  always sell a custom amount.
+                  Comma-separated. These are quick-pick shortcuts only — staff can always sell a
+                  custom amount.
                 </p>
               </div>
 
@@ -359,10 +373,9 @@ function SettingsContent() {
                 <span className="text-sm">
                   <span className="font-medium">Gift cards expire</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    Off by default. A gift card is money already paid in full, so
-                    expiring one is more likely to run into consumer-protection
-                    rules than a discounted package is — worth confirming what
-                    Qatar allows before turning this on.
+                    Off by default. A gift card is money already paid in full, so expiring one is
+                    more likely to run into consumer-protection rules than a discounted package is —
+                    worth confirming what Qatar allows before turning this on.
                   </span>
                 </span>
               </label>
@@ -378,8 +391,8 @@ function SettingsContent() {
                     onChange={(e) => setGcExpiryMonths(e.target.value)}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Applied when a card is sold. Changing this never affects cards
-                    already sold — they keep the expiry they were given.
+                    Applied when a card is sold. Changing this never affects cards already sold —
+                    they keep the expiry they were given.
                   </p>
                 </div>
               )}
@@ -431,9 +444,7 @@ function SettingsContent() {
                   Renewal date
                 </dt>
                 <dd className="mt-1 text-lg font-medium">
-                  {brand.renewal_date
-                    ? format(new Date(brand.renewal_date), "MMM d, yyyy")
-                    : "—"}
+                  {brand.renewal_date ? format(new Date(brand.renewal_date), "MMM d, yyyy") : "—"}
                 </dd>
               </div>
             </dl>
@@ -446,9 +457,17 @@ function SettingsContent() {
 
 /** Small labelled numeric field, shared by the booking settings grid. */
 function NumberSetting({
-  id, label, hint, value, onChange,
+  id,
+  label,
+  hint,
+  value,
+  onChange,
 }: {
-  id: string; label: string; hint: string; value: string; onChange: (v: string) => void;
+  id: string;
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (v: string) => void;
 }) {
   return (
     <div>
