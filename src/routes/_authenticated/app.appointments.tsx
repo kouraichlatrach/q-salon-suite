@@ -251,9 +251,15 @@ function CalendarView() {
         .from("user_roles")
         .select("user_id, role, location_id")
         .eq("brand_id", brandId)
+        .eq("role", "staff")
         .not("user_id", "is", null);
       if (error) throw error;
-      const rows = (data ?? []).filter((r) => r.role === "owner" || r.location_id === effectiveLocId);
+      // Only Staff/Technician accounts are bookable. Owner, Manager and
+      // Receptionist run the salon; they are not columns on the calendar and
+      // not options in the picker. Enforced for real by the
+      // enforce_bookable_staff_role trigger — this filter just stops the UI
+      // offering something the database would refuse.
+      const rows = (data ?? []).filter((r) => r.location_id === effectiveLocId);
       const ids = rows.map((r) => r.user_id).filter(Boolean) as string[];
       let profilesById: Record<string, { full_name: string | null; email: string | null }> = {};
       if (ids.length > 0) {

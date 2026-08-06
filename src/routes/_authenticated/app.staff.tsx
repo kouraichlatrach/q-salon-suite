@@ -344,8 +344,8 @@ function StaffContent() {
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
                       {row.user_id && (
-                        <Button variant="ghost" size="icon" asChild aria-label="Schedule">
-                          <Link to="/app/staff/$id/schedule" params={{ id: row.user_id }}>
+                        <Button variant="ghost" size="icon" asChild aria-label="Open profile">
+                          <Link to="/app/staff/$id" params={{ id: row.user_id }}>
                             <CalendarClock className="h-4 w-4" />
                           </Link>
                         </Button>

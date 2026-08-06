@@ -18,6 +18,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 2. Plans (restructured 2026-08-05 — supersedes the original Starter/Growth/Enterprise limits): **Starter** 1 location / 10 staff, 549 QAR/mo or 5,600/yr · **Growth** 1 location / 20 staff, 849 QAR/mo or 8,660/yr · **Professional** (new tier) 3 locations / 50 staff, 1,999 QAR/mo or 20,390/yr · **Enterprise** unlimited (999/999 sentinel), no published price. Staff counts exclude the Owner. Enforced at the DB level via triggers. Figures live in `src/lib/plan-limits.ts` and are mirrored onto `brands` — never retyped into a page.
    - **Extra-location add-on:** +299 QAR/mo per location, available on Starter/Growth/Professional (not Enterprise, which is already unlimited). Stored as `brands.addon_locations`; the location ceiling is now `max_locations + addon_locations`, not `max_locations`. No self-serve purchase flow — a Platform Admin sets the count by hand after the Owner asks.
    - **Staff limits remain a hard per-tier ceiling** — no staff add-on is specced.
+   - ⚠ **Limits are mirrored onto each brand, not looked up.** Changing what a tier means does **not** reach brands already on it — they keep the numbers written at creation or last `/admin` save. Every brand created before 2026-08-05 is therefore mis-limited against the new tiers. Safe only because there are no paying customers; **see Section 12 before the first real signup.**
 3. Roles: Owner, Location Manager, Receptionist, Staff/Technician — fixed, not a custom permission builder.
 4. Clients: shared brand-wide (not siloed per location); appointments/transactions still tagged per-location.
 5. Stock: shared product catalog brand-wide; quantity tracked per-location.
@@ -57,6 +58,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 | 13 | **WhatsApp Automation** | 🟡 **Built except the send itself.** Consent capture, opt-out, scheduling, and audit logging are all done and working. The actual outbound message is blocked by the Twilio **trial account** (error 21654 — see Section 10). |
 | 14 | **Packages (client-facing)** | ✅ **Shipped.** Multi-service bundles with an independent remaining count per service, detection at both booking and checkout, session debited only at checkout, expiry-as-live-check, refund-while-unused with a goodwill expiry extension after, and an expired-with-sessions-left Owner report. Revenue recognised once, at sale. Verified by browser walkthrough. See Section 11. |
 | 15 | **Gift Cards** | ✅ **Shipped.** Sale, code lookup, partial redemption across multiple visits, expiry-as-live-check, and an expired-with-balance Owner report. Revenue recognised once, at sale. Verified by browser walkthrough. See Section 11. |
+| 17 | **Staff profiles** (`/app/staff/:id`) | ✅ **Shipped.** Personal details (PII, tiered RLS), photos via the project's first Storage bucket, location history with an atomic transfer RPC, per-location performance, leave and schedule on one page. See Section 13. |
 | 16 | **Memberships** | 📋 **Fully specced, not built.** Depends on Payments Phase C's recurring-billing mechanics (retry schedule, no-proration model) — do not start until Phase C is built and proven, since Memberships is specced to directly reuse that machinery rather than re-solve it. See Section 11. |
 
 ---
@@ -80,6 +82,8 @@ These are lessons earned the hard way — worth checking for explicitly in every
 11. **Read-then-write against a limit is a race, and on a paid limit it is a revenue bug.** `enforce_location_plan_limit` counted rows and then inserted, so two concurrent inserts could both see room and both commit — a one-location brand ending up with two. Now serialised with `pg_advisory_xact_lock` keyed on the brand. `enforce_staff_plan_limit` still carries the same race and has not been fixed.
 
 12. **`current_user` inside a `SECURITY DEFINER` function is the function's OWNER, not the caller — and a security check built on it silently exempts everybody.** The first `guard_brand_billing_columns` allowed `current_user IN ('postgres','service_role','supabase_admin')` as its "this is a trusted server-side caller" test. Because the function is `SECURITY DEFINER` and Supabase applies migrations as `postgres`, `current_user` evaluated to `'postgres'` on every invocation, so that clause was unconditionally true and the guard never blocked a single write. It passed code review, `db push` reported success, the trigger really was attached, and the schema looked entirely correct — a signed-in Owner could still set their own `max_locations` to 999. **`session_user` is no better here:** PostgREST connects as `authenticator` and then `SET`s the role, so it reads `authenticator` for `authenticated` and `service_role` alike and cannot separate them either. Identify the caller from something `SECURITY DEFINER` cannot rewrite — `auth.uid()` and the JWT's own `request.jwt.claims ->> 'role'` — or match on identity via `is_platform_admin()`. **A guard that exempts the wrong party fails open and looks exactly like a guard that works**, which is why this one needs a test that impersonates the real role rather than a review that reads the SQL: `supabase/tests/billing_guard_regression.sql` does the `SET LOCAL request.jwt.claims` + `SET LOCAL ROLE authenticated` dance and fails against the buggy version. Any future permission check in a trigger or RPC gets the same treatment.
+
+13. **An RLS *read* gap does not look like a bug — it looks like an empty list, and the UI quietly compensates in the wrong direction.** Found on 2026-08-06 while restricting bookable staff to `role = 'staff'`. `user_roles` had SELECT policies for the user's own rows, for Owners brand-wide, and for Managers at their location — and **nothing for Receptionists**; `profiles` was the same, visible to owner/manager only. So a signed-in Receptionist querying `user_roles` got back exactly one row: their own. The appointments picker filtered that with `role = 'owner' OR location_id = <loc>`, their own receptionist row matched, and the dropdown rendered a single option — themselves. Nothing errored. Nobody saw an empty state. The Receptionist simply booked every appointment against a Receptionist account, which is a substantial share of the 125 non-Staff assignments the cleanup found. **The tell was absent precisely because the UI had a fallback that happened to match the caller's own row.** Two lessons: a read policy set that omits a role is invisible until you enumerate the roles explicitly, and tightening a UI filter over a too-narrow RLS view converts "silently wrong" into "silently empty" — the second failure was one line away and would also have shipped. Fixed by two narrow SELECT policies granting booking-capable roles sight of *staff-role rows only*, at locations they already administer. Covered by `supabase/tests/bookable_staff_regression.sql`, which impersonates a real Receptionist session rather than reading the policy SQL.
 
 ---
 
@@ -342,6 +346,201 @@ Recurring client-paid subscription unlocking an ongoing benefit — depends on P
 4. **Enrollment: staff-initiated, triggered proactively.** A staff-facing prompt appears on a client's profile after their **first completed appointment**, suggesting "offer a membership" — timed to the moment a retention pitch is most likely to land, without ever bypassing actual consent-based enrollment. This is explicitly *not* automatic enrollment: a membership requires the client's real payment details and explicit consent to recurring billing, the same as any other Dibsy charge in this product — no client is ever silently opted into paid recurring billing.
 
 **New schema needed:** a membership-tier definition table (brand-scoped, benefit type, discount % or included-service config, rollover cap if applicable, price, billing interval); a client-membership-enrollment table (active tier, status, saved payment method reference, next billing date, retry-attempt tracking — mirroring Phase C's own schema needs); a mechanism on the client profile to surface the first-completed-appointment enrollment prompt (likely a simple computed flag: has one completed appointment, no active membership yet).
+
+---
+
+## 12. Pre-Launch Checklist — must be cleared before the first real customer
+
+Things that are **safe today only because there are no paying customers**. Each
+one is a live defect the moment someone signs up under the new pricing. This is
+not a roadmap; nothing here is optional.
+
+### ☐ Backfill mirrored plan limits on brands created before 2026-08-05
+
+`brands.max_locations` and `brands.max_staff_accounts` are a **snapshot written
+at plan-change time**, not a lookup. `enforce_location_plan_limit` and
+`enforce_staff_plan_limit` read those columns, not `src/lib/plan-limits.ts`. So
+redefining what a tier *means* does not reach a brand already sitting on it —
+the brand keeps whatever numbers were mirrored onto it when it was created or
+last saved in `/admin`.
+
+The 2026-08-05 restructure changed every tier, so every pre-existing brand is
+now mis-limited against its own plan. Observed live during that work: a brand
+on `growth` still carried `max_staff_accounts = 10` from the old structure
+while the pricing page advertised 20. Another brand only became correct because
+it happened to be re-saved during testing.
+
+**The failure mode is the dangerous kind — silent and in the customer's
+disfavour.** They are billed for the tier they bought, the marketing page
+promises the new allowance, and the database enforces the old smaller one. They
+hit a wall the product told them they would not hit, and nothing raises an
+alert; the trigger just refuses the insert.
+
+No backfill shipped with the restructure, deliberately: blanket-rewriting every
+brand's limits would clobber any bespoke allowance granted by hand, and with
+zero customers the safer move was to leave it explicit rather than guess.
+
+Resolve by **either**:
+- re-saving each brand in `/admin` (fine while the brand count is tiny — it
+  rewrites the limits from `PLAN_LIMITS` as a side effect of the save), **or**
+- a targeted migration that updates only brands whose stored limits still match
+  the *old* tier values exactly, leaving anything bespoke untouched.
+
+Verify afterwards that no brand's stored limits disagree with
+`PLAN_LIMITS[plan]` unless that difference is a deliberate, recorded exception.
+
+### ☐ Decide what happens to Growth brands with 2–3 locations
+
+Growth dropped from 3 locations to 1 in the same restructure. Existing Growth
+brands above the new ceiling are not broken — the location trigger only fires
+on INSERT — but they cannot add another branch. Grandfather them, issue
+complimentary `addon_locations`, or move them to Professional. Pick one before
+anyone is affected.
+
+### ☐ Decide what to do with 103 historical appointments assigned to non-Staff
+
+The 2026-08-06 bookable-staff restriction deleted the 22 **scheduled** appointments
+assigned to an Owner/Manager/Receptionist, but deliberately kept the 103
+historical ones (completed / cancelled / no_show). Deleting those would have
+cascaded into `income_records` — 67 rows, 11,886.21 QAR, roughly half of all
+recorded revenue — because `income_records.appointment_id` is `ON DELETE
+CASCADE`.
+
+They are harmless to booking: the trigger only fires on INSERT/UPDATE of the
+assignment, so nothing can re-assign them and nothing new can join them. But
+**per-staff Reports still attribute that revenue to people who are not staff**,
+which will read as nonsense the moment a real Owner opens Reports. Either
+reassign them to genuine Staff accounts, exclude non-Staff assignees from the
+staff-performance report, or accept it as seed-data noise and wipe the test
+brands before launch. This is only cosmetic while the data is fake.
+
+### ☐ Re-check the billing guard after any change to brands' RLS or grants
+
+`guard_brand_billing_columns` is what makes every plan limit real rather than
+advisory (Section 4, bug class 12). Run
+`supabase/tests/billing_guard_regression.sql` after any change to `brands`
+policies, grants, or trigger set — it is the only check that catches a guard
+which fails open.
+
+---
+
+## 13. Staff Profiles — Shipped
+
+Full staff profile at `/app/staff/:id`: header, personal details, location +
+transfer + history, per-location performance, leave, and the weekly-hours editor
+folded in from `/app/staff/:id/schedule` (that route still works and now shares
+the same components rather than holding a second copy).
+
+**Three tables, and the split was forced rather than chosen.** The brief asked
+for `photo_url` to live on `staff_personal_details` and be readable brand-wide
+while the rest of the row stayed restricted. Postgres cannot express that — RLS
+filters rows, never columns (bug class 10). A SELECT policy grants the whole row
+or none of it, and column-level `GRANT`s are per-database-role, not
+per-caller-condition. So the photo lives in `staff_photos` (brand-wide read,
+Owner/Manager write) and `staff_personal_details` holds only the sensitive tier.
+Anyone tempted to "simplify" these back into one table should read this twice.
+
+**Manager PII scope is location-only, and this is settled — not an oversight.**
+The original brief said Owner/Manager of the staff member's *brand*. Brand-scoping
+Managers would let the Manager of one branch read the QID, home address and DOB
+of a stylist at another branch they have never met, which is hard to defend under
+the PDPPL's data-minimisation posture. `can_view_staff_pii()` therefore gives
+Owners brand-wide access and Managers their own location only. One function,
+called by all four policies *and* by the UI, so the page and the database can
+never disagree about who may see a national ID.
+
+⚠ **Confirmed by the owner on 2026-08-06, after the deviation was flagged.** It
+reads like a bug against the original brief and it is not one. Do not "restore"
+brand-wide Manager access on the strength of the brief text alone — widening this
+is a decision about real people's identity documents, not a spec-conformance fix.
+If it is ever genuinely wanted, it is a one-line change to `can_view_staff_pii()`
+and it needs its own explicit sign-off, because the reverse direction —
+discovering it was too broad once a real salon's staff records are in the table —
+cannot be undone.
+
+**`photo_path`, not `photo_url`.** The bucket is private, so the only URL that
+could be stored is a signed one — and signed URLs expire. Persisting one persists
+a value that stops working within the hour. The stable fact is the object path;
+the client mints a short-lived signed URL at render time.
+
+**Storage, first use in this project.** Bucket `staff-photos`: private, 5 MB cap,
+JPEG/PNG/WebP only. Path convention `{brand_id}/{user_id}` — brand first because
+the policies parse `(storage.foldername(name))[1]` to decide access, and a
+user-first path would leave them unable to tell which brand an object belongs to.
+The `ON CONFLICT` clause re-asserts `public = false` on every apply so the bucket
+cannot drift public.
+
+**`transfer_staff_location`** does three writes — close the open history row,
+open a new one, repoint `user_roles.location_id` — in one SECURITY DEFINER
+function, because doing them as three client calls is bug class 3. It takes an
+advisory lock on the staff member before reading their current location (bug
+class 11), returns `no_change` rather than writing a zero-length stint, and
+authorises from `auth.uid()` and JWT claims, never `current_user` (bug class 12).
+Owners may target any location in the brand; Managers only a location they run,
+so a Manager can pull someone in but never push someone out.
+
+**Appointments are deliberately untouched by a transfer.** They carry their own
+`location_id`, so work done at a branch someone has since left stays credited to
+that branch. Verified by moving a stylist and confirming the per-location
+breakdown was byte-identical before and after.
+
+**Operational consequence worth knowing:** `staff_schedules` are per-location, so
+a transferred stylist has no working hours at the new branch until someone sets
+them — and therefore no self-booking availability there. The transfer toast says
+so; it is not a bug.
+
+---
+
+## 14. Plan Upgrade Requests — Shipped
+
+An Owner can ask for a higher tier or more location add-ons from
+`/app/settings` (Billing). A Platform Admin sees a count in the `/admin` header,
+opens `/admin/requests`, applies the change on the existing brand detail screen,
+then marks the request processed.
+
+**This table cannot change a plan, and that is the entire design.**
+`guard_brand_billing_columns` deliberately makes plan, limits, add-ons and
+billing dates unwritable by an Owner (bug class 12). The product still needed a
+way for an Owner to ask, so `plan_upgrade_requests` records intent and nothing
+else. Nothing here writes to `brands`; the only writer remains the `/admin`
+brand detail screen that `billing_guard_regression.sql` already covers.
+
+⚠ **The failure mode to guard against is a helpful-looking one.** An "Apply this
+request" button on the admin queue would be an obvious convenience and would
+reopen exactly the hole the billing guard closed, by creating a second,
+unguarded write path to the billing columns. "Mark processed" therefore closes
+the request only and says so on screen.
+`supabase/tests/plan_request_regression.sql` asserts the separation two ways:
+structurally, that no trigger on the table writes to `brands`; and behaviourally,
+from a real Owner session, that raising a request leaves every billing column
+untouched while direct writes to plan/add-ons/limits are still refused.
+
+**Other decisions worth carrying forward:**
+
+1. **`current_plan` is stamped by a trigger, not trusted from the client.** RLS
+   filters rows, not columns, so the INSERT policy cannot stop an Owner sending
+   any `current_plan` they like. A BEFORE INSERT trigger overwrites it from
+   `brands`, so the admin queue shows what the brand is actually on — the number
+   the admin will act against. The trigger reads `brands` and writes nothing.
+2. **The INSERT policy pins `status`, `processed_at` and `processed_by`.**
+   Without those clauses an Owner could insert a row that already claimed to be
+   processed. There is deliberately no UPDATE policy for Owners, so they cannot
+   approve their own request after the fact either.
+3. **Column-level `GRANT UPDATE (status, processed_at, processed_by)`** rather
+   than a table-wide grant — the lesson of bug class 10, applied up front: an
+   admin resolving a request cannot rewrite the brand, the amount asked for, or
+   the requester.
+4. **Tier ordering is not re-encoded in SQL.** The UI offers only tiers above the
+   current one using `PLAN_ORDER` from `plan-limits.ts`. The `subscription_plan`
+   enum's own ordinal order is not meaningful ('professional' was appended after
+   'enterprise'), so a SQL check would mean a second copy of the tier ranking —
+   the duplicate-source-of-truth problem `plan-limits.ts` exists to prevent.
+   Nothing is lost: a human reads every request before anything happens.
+5. **Manager, Receptionist and Staff get no access at all** — not even read. What
+   a salon pays is not roster information.
+6. **The header badge is the notification mechanism**, because there is no
+   working outbound send yet (Section 10 is blocked on a paid Twilio account).
+   When WhatsApp/email is unblocked, this is a natural second consumer.
 
 ---
 
