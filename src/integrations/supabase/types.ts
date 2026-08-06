@@ -243,6 +243,7 @@ export type Database = {
       }
       brands: {
         Row: {
+          addon_locations: number
           billing_cycle: Database["public"]["Enums"]["billing_cycle"]
           created_at: string
           currency: string
@@ -252,7 +253,6 @@ export type Database = {
           gift_card_expiry_months: number
           id: string
           max_advance_days: number
-          addon_locations: number
           max_locations: number
           max_staff_accounts: number
           min_notice_hours: number
@@ -269,6 +269,7 @@ export type Database = {
           whatsapp_enabled: boolean
         }
         Insert: {
+          addon_locations?: number
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           created_at?: string
           currency?: string
@@ -278,7 +279,6 @@ export type Database = {
           gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
-          addon_locations?: number
           max_locations?: number
           max_staff_accounts?: number
           min_notice_hours?: number
@@ -295,6 +295,7 @@ export type Database = {
           whatsapp_enabled?: boolean
         }
         Update: {
+          addon_locations?: number
           billing_cycle?: Database["public"]["Enums"]["billing_cycle"]
           created_at?: string
           currency?: string
@@ -304,7 +305,6 @@ export type Database = {
           gift_card_expiry_months?: number
           id?: string
           max_advance_days?: number
-          addon_locations?: number
           max_locations?: number
           max_staff_accounts?: number
           min_notice_hours?: number
@@ -1369,6 +1369,141 @@ export type Database = {
           },
         ]
       }
+      staff_location_history: {
+        Row: {
+          brand_id: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          location_id: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          location_id: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          location_id?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_location_history_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_history_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_location_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_personal_details: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          hire_date: string | null
+          home_address: string | null
+          national_id: string | null
+          nationality: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          home_address?: string | null
+          national_id?: string | null
+          nationality?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          hire_date?: string | null
+          home_address?: string | null
+          national_id?: string | null
+          nationality?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_personal_details_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_photos: {
+        Row: {
+          brand_id: string
+          photo_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand_id: string
+          photo_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand_id?: string
+          photo_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_photos_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_photos_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_schedules: {
         Row: {
           created_at: string
@@ -1680,6 +1815,10 @@ export type Database = {
         Args: { _location_id: string; _user_id: string }
         Returns: boolean
       }
+      can_view_staff_pii: {
+        Args: { _actor: string; _staff_user_id: string }
+        Returns: boolean
+      }
       claim_pending_invite: {
         Args: never
         Returns: {
@@ -1826,6 +1965,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_bookable_staff: {
+        Args: { _brand_id: string; _user_id: string }
         Returns: boolean
       }
       is_brand_manager_or_owner: {
@@ -2151,6 +2294,14 @@ export type Database = {
           currency: string
           ok: boolean
           reason: string
+        }[]
+      }
+      transfer_staff_location: {
+        Args: { _new_location_id: string; _staff_user_id: string }
+        Returns: {
+          history_id: string
+          ok: boolean
+          outcome: string
         }[]
       }
       whatsapp_consent_from_booking: {

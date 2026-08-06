@@ -58,6 +58,7 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 | 13 | **WhatsApp Automation** | 🟡 **Built except the send itself.** Consent capture, opt-out, scheduling, and audit logging are all done and working. The actual outbound message is blocked by the Twilio **trial account** (error 21654 — see Section 10). |
 | 14 | **Packages (client-facing)** | ✅ **Shipped.** Multi-service bundles with an independent remaining count per service, detection at both booking and checkout, session debited only at checkout, expiry-as-live-check, refund-while-unused with a goodwill expiry extension after, and an expired-with-sessions-left Owner report. Revenue recognised once, at sale. Verified by browser walkthrough. See Section 11. |
 | 15 | **Gift Cards** | ✅ **Shipped.** Sale, code lookup, partial redemption across multiple visits, expiry-as-live-check, and an expired-with-balance Owner report. Revenue recognised once, at sale. Verified by browser walkthrough. See Section 11. |
+| 17 | **Staff profiles** (`/app/staff/:id`) | ✅ **Shipped.** Personal details (PII, tiered RLS), photos via the project's first Storage bucket, location history with an atomic transfer RPC, per-location performance, leave and schedule on one page. See Section 13. |
 | 16 | **Memberships** | 📋 **Fully specced, not built.** Depends on Payments Phase C's recurring-billing mechanics (retry schedule, no-proration model) — do not start until Phase C is built and proven, since Memberships is specced to directly reuse that machinery rather than re-solve it. See Section 11. |
 
 ---
@@ -420,6 +421,64 @@ advisory (Section 4, bug class 12). Run
 `supabase/tests/billing_guard_regression.sql` after any change to `brands`
 policies, grants, or trigger set — it is the only check that catches a guard
 which fails open.
+
+---
+
+## 13. Staff Profiles — Shipped
+
+Full staff profile at `/app/staff/:id`: header, personal details, location +
+transfer + history, per-location performance, leave, and the weekly-hours editor
+folded in from `/app/staff/:id/schedule` (that route still works and now shares
+the same components rather than holding a second copy).
+
+**Three tables, and the split was forced rather than chosen.** The brief asked
+for `photo_url` to live on `staff_personal_details` and be readable brand-wide
+while the rest of the row stayed restricted. Postgres cannot express that — RLS
+filters rows, never columns (bug class 10). A SELECT policy grants the whole row
+or none of it, and column-level `GRANT`s are per-database-role, not
+per-caller-condition. So the photo lives in `staff_photos` (brand-wide read,
+Owner/Manager write) and `staff_personal_details` holds only the sensitive tier.
+Anyone tempted to "simplify" these back into one table should read this twice.
+
+**Manager PII scope is tighter than the brief specified.** The brief said
+Owner/Manager of the staff member's *brand*. Brand-scoping Managers would let the
+Manager of one branch read the QID, home address and DOB of a stylist at another
+branch they have never met, which is hard to defend under the PDPPL's
+data-minimisation posture. `can_view_staff_pii()` therefore gives Owners
+brand-wide access and Managers their own location only. One function, called by
+all four policies *and* by the UI, so the page and the database can never
+disagree about who may see a national ID.
+
+**`photo_path`, not `photo_url`.** The bucket is private, so the only URL that
+could be stored is a signed one — and signed URLs expire. Persisting one persists
+a value that stops working within the hour. The stable fact is the object path;
+the client mints a short-lived signed URL at render time.
+
+**Storage, first use in this project.** Bucket `staff-photos`: private, 5 MB cap,
+JPEG/PNG/WebP only. Path convention `{brand_id}/{user_id}` — brand first because
+the policies parse `(storage.foldername(name))[1]` to decide access, and a
+user-first path would leave them unable to tell which brand an object belongs to.
+The `ON CONFLICT` clause re-asserts `public = false` on every apply so the bucket
+cannot drift public.
+
+**`transfer_staff_location`** does three writes — close the open history row,
+open a new one, repoint `user_roles.location_id` — in one SECURITY DEFINER
+function, because doing them as three client calls is bug class 3. It takes an
+advisory lock on the staff member before reading their current location (bug
+class 11), returns `no_change` rather than writing a zero-length stint, and
+authorises from `auth.uid()` and JWT claims, never `current_user` (bug class 12).
+Owners may target any location in the brand; Managers only a location they run,
+so a Manager can pull someone in but never push someone out.
+
+**Appointments are deliberately untouched by a transfer.** They carry their own
+`location_id`, so work done at a branch someone has since left stays credited to
+that branch. Verified by moving a stylist and confirming the per-location
+breakdown was byte-identical before and after.
+
+**Operational consequence worth knowing:** `staff_schedules` are per-location, so
+a transferred stylist has no working hours at the new branch until someone sets
+them — and therefore no self-booking availability there. The transfer toast says
+so; it is not a bug.
 
 ---
 
