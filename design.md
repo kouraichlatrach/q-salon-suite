@@ -145,6 +145,53 @@ Focus rings appear **instantly** — never transition a `:focus-visible` outline
 - **Status**: `--color-status-live` for shipped, `--color-status-upcoming`
   (chromatic-free) for built-but-not-on. These must never share a treatment.
 
+## Data visualisation
+
+Charts are an app-page concern only (`/app/reports`, and any future analytics).
+Marketing pages carry no charts — an invented figure in a chart is the same
+fabricated-proof failure as an invented metric in copy, and harder to spot.
+
+**Series colour is a separate ramp from the accent, deliberately.** Rose gold is
+capped under 3% of the viewport and reserved for the nav edge, focus rings and
+one primary action. A chart fills large areas by definition, so painting series
+in rose gold would break accent discipline on the one screen where the accent
+still has to mean "act here". The five categorical steps live as `--chart-1`
+… `--chart-5` in `src/styles.css`, with separate values under `.dark`.
+
+- **The ramp is validated, not eyeballed.** All five steps pass a six-check
+  audit against the surface they sit on: lightness band, chroma floor,
+  adjacent-pair colour-vision separation, normal-vision separation, and 3:1
+  contrast. Worst adjacent pair is 11.4 ΔE (deutan) in light, 12.1 in dark.
+- **Dark mode gets its own steps.** The dark lightness band (L 0.48–0.67) is
+  narrower and lower than the light band (0.43–0.77), so flipping the light
+  values fails the audit outright. Re-run the validator after any edit — do not
+  hand-tune a step and assume.
+- **Assign in fixed order, never cycled.** A sixth series folds into "Other" or
+  becomes small multiples. A generated sixth hue is not permitted.
+- **Never a dual-axis chart.** Two measures of different scale get two stacked
+  plots on a shared x-axis. Overlaying revenue and appointment counts on two
+  y-axes invents a correlation out of arbitrary axis alignment.
+- **Colour is never the only carrier of identity.** Every series is directly
+  labelled or legended; text stays in the ink tokens and never takes the series
+  colour.
+- **Recharts gets resolved colour strings, not `var()`.** Recharts writes
+  colours as SVG presentation attributes, where `var()` is not reliably
+  resolved. `useChartPalette()` reads the custom properties and hands over
+  concrete values. The pre-redesign Reports page painted every mark
+  `hsl(var(--accent))` against an `oklch()` token — not a colour at all — and
+  nobody noticed, which is exactly why this rule is written down.
+
+**Every rate ships its denominator.** A percentage computed on a handful of
+records is noise wearing the costume of a finding. Rates below five concluded
+records render as raw counts with a note, never as a headline percentage —
+"100% no-show" beside a staff member's name off a single appointment is a
+number that damages someone.
+
+**Say which clock a figure is on.** Revenue is counted when money was collected;
+appointment volume, no-shows and cancellations are counted by the visit date.
+Those are different populations and must never be divided into one another. Any
+card mixing them states its basis in the hint line.
+
 ## Copy rules
 
 - No invented metrics, ever. Every number on a screen is computed from the

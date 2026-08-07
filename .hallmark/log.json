@@ -1,5 +1,20 @@
 [
   {
+    "date": "2026-08-07",
+    "scope": "page",
+    "macrostructure": "Stat-Led",
+    "genre": "modern-minimal",
+    "theme": "custom",
+    "theme_axes": "light / high-contrast-serif / warm",
+    "nav": "N3 side-rail (existing AppShell)",
+    "footer": "Ft2 inline rule (existing AppShell)",
+    "enrichment": "none",
+    "motion": "none",
+    "design_system": "design.md",
+    "brief": "Q-Salon Suite · /app/reports redesign — Owner/Manager business performance review",
+    "note": "design.md amended with a Data visualisation section rather than overriding locally. Chart ramp is a separate 5-slot categorical palette (rose gold deliberately excluded — accent stays under 3% and is never a fill); validated 6/6 in light and dark via the dataviz validator, with separately-stepped dark values. Stat-Led number-tick reveal REFUSED: design.md forbids count-ups on app pages. Floating cards replaced by the gap-px hairline grid. Fixed 5 pre-existing correctness bugs incl. weekStartsOn:1 and a Manager scope that failed open."
+  },
+  {
     "date": "2026-08-05",
     "scope": "page",
     "macrostructure": "Split Studio",
