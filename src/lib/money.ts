@@ -16,6 +16,25 @@
  * client would be a second source of truth for money, which is how the two
  * numbers drift apart in the first place.
  */
+/**
+ * The same amount split into its parts, for a Stat-Led hero figure where the
+ * currency is set as a smaller unit beside the number.
+ *
+ * `formatMoney` returns "441.80 QAR", and that space is a legal wrap point — a
+ * big figure in a narrow stat cell breaks across two lines there, which
+ * design.md forbids outright ("a figure is never allowed to wrap").
+ * `[overflow-wrap:normal]` does not help: it prevents breaking *inside* a word,
+ * not at a space between two.
+ */
+export function splitMoney(
+  value: number | string | null | undefined,
+  currency = "QAR",
+): { amount: string; unit: string } {
+  const full = formatMoney(value, currency);
+  const i = full.lastIndexOf(" ");
+  return i === -1 ? { amount: full, unit: "" } : { amount: full.slice(0, i), unit: full.slice(i + 1) };
+}
+
 export function formatMoney(value: number | string | null | undefined, currency = "QAR"): string {
   const n = typeof value === "string" ? Number(value) : (value ?? 0);
   const safe = Number.isFinite(n) ? n : 0;

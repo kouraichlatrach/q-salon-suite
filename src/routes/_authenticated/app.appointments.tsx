@@ -1,6 +1,7 @@
 import { errorMessage } from "@/lib/error-message";
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, stripSearchParams, useNavigate } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDays,
@@ -9,13 +10,13 @@ import {
   isSameDay,
   parseISO,
   startOfDay,
-  startOfWeek,
 } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, MessageCircle, MoreVertical } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/use-tenant";
+import { formatMoney } from "@/lib/money";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,13 +47,53 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { MultiSelectOption } from "@/components/ui/multi-select";
+import {
+  ActiveFilterChips,
+  AppointmentFilters,
+  DateRangeControl,
+} from "@/components/appointment-filters";
+import {
+  type AppointmentSearch,
+  APPOINTMENT_SEARCH_DEFAULTS,
+  appointmentSearchSchema,
+
+  formatDateParam,
+  parseList,
+  resolveLocationId,
+  resolveRange,
+} from "@/lib/appointment-filters";
 
 export const Route = createFileRoute("/_authenticated/app/appointments")({
+  validateSearch: zodValidator(appointmentSearchSchema),
+  // Keeps a shared link readable: anything still at its default is dropped
+  // from the query string instead of riding along as `staff=&service=&q=`.
+  search: { middlewares: [stripSearchParams(APPOINTMENT_SEARCH_DEFAULTS)] },
   head: () => ({
     meta: [{ title: "Appointments — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: AppointmentsPage,
 });
+
+/**
+ * Writes a filter change back to the URL. `replace` keeps the browser Back
+ * button useful — narrowing a filter five times should not cost five presses
+ * to get out of.
+ *
+ * Params left at their default are kept out of the URL by the route's
+ * `stripSearchParams` middleware, not here — deleting them in this updater
+ * does nothing, because `validateSearch` re-applies the zod defaults before
+ * the router serialises. (Learned the hard way; don't re-add that loop.)
+ */
+function useFilterPatch() {
+  const navigate = useNavigate({ from: Route.fullPath });
+  return useCallback(
+    (patch: Partial<AppointmentSearch>) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+    },
+    [navigate],
+  );
+}
 
 type ApptStatus = "scheduled" | "completed" | "cancelled" | "no_show";
 
@@ -113,6 +154,69 @@ for (let h = DAY_START_HR; h < DAY_END_HR; h++) {
   }
 }
 
+/**
+ * PostgREST reads `,` `(` `)` as structure inside an `or=` expression, so a
+ * client searching for "Smith, J" would otherwise send a malformed filter — and
+ * a crafted string could append conditions of its own. Strip the syntax
+ * characters rather than escaping them: none of them appear in a real name or
+ * phone number, so nothing searchable is lost.
+ */
+function sanitiseSearchTerm(raw: string): string {
+  return raw.replace(/[,()\\*]/g, " ").trim();
+}
+
+/**
+ * The client name/phone search, expressed as a filter on the embedded `clients`
+ * row rather than by first resolving a list of matching client ids.
+ *
+ * The id-list approach reads more simply but does not survive a real brand: a
+ * one-character search matches thousands of clients, and PostgREST takes
+ * `in.(...)` as a GET query parameter, so the request URL blows past what the
+ * server accepts. Capping the list would have been worse — a search that
+ * silently stops at the 500th client is exactly the quietly-wrong shape this
+ * project keeps getting bitten by.
+ *
+ * `!inner` turns the join into a filter: an appointment survives only if its
+ * client matches. While a search is active this puts appointment visibility
+ * partly under the RLS policy for `clients` — safe here, since every role that
+ * reaches this screen already reads client names on it, and the join is only
+ * attached when the box is non-empty so an unfiltered calendar is untouched.
+ */
+function clientSearch(q: string): { select: string; term: string | null } {
+  const term = sanitiseSearchTerm(q);
+  return term ? { select: "*, clients!inner(id)", term } : { select: "*", term: null };
+}
+
+/**
+ * Applies the multi-select filters to an appointments query.
+ *
+ * These are real `IN` clauses sent to PostgREST, not a client-side array
+ * filter — a month of appointments for one staff member should not mean
+ * downloading the whole month first. Every clause is additive (AND), so
+ * combining them narrows to the intersection.
+ *
+ * This never touches brand/location/staff scoping: those are applied by the
+ * caller and enforced underneath by RLS.
+ */
+type InFilterable<T> = { in(column: string, values: readonly string[]): T };
+
+function applyEntityFilters<T extends InFilterable<T>>(
+  query: T,
+  search: AppointmentSearch,
+  opts: { staff: boolean },
+): T {
+  let q = query;
+  if (opts.staff) {
+    const staff = parseList(search.staff);
+    if (staff.length > 0) q = q.in("staff_user_id", staff);
+  }
+  const service = parseList(search.service);
+  if (service.length > 0) q = q.in("service_id", service);
+  const status = parseList(search.status);
+  if (status.length > 0) q = q.in("status", status);
+  return q;
+}
+
 function statusColor(s: ApptStatus): string {
   switch (s) {
     case "scheduled":
@@ -150,46 +254,137 @@ function AppointmentsPage() {
 function MyAppointments() {
   const tenant = useTenant();
   const userId = tenant.data!.userId!;
-  const [date, setDate] = useState<Date>(startOfDay(new Date()));
+  const brandId = tenant.data!.brandId!;
+  const search = Route.useSearch();
+  const patch = useFilterPatch();
 
-  const { data: appts = [] } = useQuery({
-    queryKey: ["my-appts", userId, date.toISOString()],
+  const { start, end } = resolveRange(search);
+  const anchor = start;
+
+  // Services are brand-wide, so a Staff account can populate this filter
+  // without being shown anything about other people's diaries.
+  const { data: services = [] } = useQuery({
+    queryKey: ["services", brandId],
     queryFn: async () => {
-      const start = startOfDay(date).toISOString();
-      const end = addDays(startOfDay(date), 1).toISOString();
       const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("staff_user_id", userId)
-        .gte("starts_at", start)
-        .lt("starts_at", end)
-        .order("starts_at");
+        .from("services")
+        .select("id, name, duration_minutes, default_price, currency")
+        .eq("brand_id", brandId)
+        .eq("is_active", true)
+        .order("name");
       if (error) throw error;
-      return data as Appointment[];
+      return data as ServiceRow[];
     },
   });
 
+  const { data: appts = [], isPending } = useQuery({
+    queryKey: ["my-appts", userId, start.toISOString(), end.toISOString(), search.service, search.status, search.q],
+    queryFn: async () => {
+      const { select, term } = clientSearch(search.q);
+
+      // The `staff_user_id` equality is the boundary, not a filter — it is
+      // applied before anything from the URL and is never widened by one.
+      let q = supabase
+        .from("appointments")
+        .select(select)
+        .eq("staff_user_id", userId)
+        .gte("starts_at", start.toISOString())
+        .lt("starts_at", end.toISOString());
+      q = applyEntityFilters(q, search, { staff: false });
+      if (term) {
+        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`, { referencedTable: "clients" });
+      }
+
+      const { data, error } = await q.order("starts_at");
+      if (error) throw error;
+      return data as unknown as Appointment[];
+    },
+  });
+
+  const serviceOptions: MultiSelectOption[] = services.map((s) => ({
+    value: s.id,
+    label: s.name,
+    hint: `${s.duration_minutes}m`,
+  }));
+
+  function shift(days: number) {
+    patch({ preset: "day", date: formatDateParam(addDays(anchor, days)) });
+  }
+
   return (
-    <div className="p-6 md:p-8">
-      <header className="mb-6 flex items-center justify-between">
+    <div className="flex h-screen flex-col">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 md:px-6">
         <div>
           <h1 className="font-display text-2xl font-semibold">My appointments</h1>
-          <p className="text-sm text-muted-foreground">{format(date, "EEEE, MMMM d, yyyy")}</p>
+          <p className="text-sm text-muted-foreground">
+            <RangeLabel search={search} start={start} end={end} />
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => setDate(addDays(date, -1))}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button variant="outline" onClick={() => setDate(startOfDay(new Date()))}>Today</Button>
-          <Button variant="outline" size="icon" onClick={() => setDate(addDays(date, 1))}><ChevronRight className="h-4 w-4" /></Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeControl search={search} onPatch={patch} />
+          {search.preset === "day" && (
+            <>
+              <Button variant="outline" size="icon" aria-label="Previous day" onClick={() => shift(-1)}>
+                <ChevronLeft aria-hidden className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" aria-label="Next day" onClick={() => shift(1)}>
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </header>
-      {appts.length === 0 ? (
-        <Card className="p-10 text-center text-sm text-muted-foreground">Nothing booked for this day.</Card>
-      ) : (
-        <div className="space-y-2">
-          {appts.map((a) => <StaffApptCard key={a.id} appt={a} />)}
-        </div>
-      )}
+
+      <AppointmentFilters
+        search={search}
+        staffOptions={[]}
+        serviceOptions={serviceOptions}
+        onPatch={patch}
+        showStaff={false}
+      />
+      <ActiveFilterChips
+        search={search}
+        staffOptions={[]}
+        serviceOptions={serviceOptions}
+        resultCount={appts.length}
+        onPatch={patch}
+        onClearAll={() => patch({ service: "", status: "", q: "" })}
+      />
+
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        {isPending ? (
+          <Skeleton className="h-64 w-full" />
+        ) : appts.length === 0 ? (
+          <Card className="p-10 text-center text-sm text-muted-foreground">
+            <EmptyMessage search={search} />
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {appts.map((a) => <StaffApptCard key={a.id} appt={a} />)}
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Human label for whatever window is currently in force. */
+function RangeLabel({ search, start, end }: { search: AppointmentSearch; start: Date; end: Date }) {
+  const lastDay = addDays(end, -1);
+  if (search.preset === "day") return <>{format(start, "EEEE, MMMM d, yyyy")}</>;
+  if (search.preset === "month") return <>{format(start, "MMMM yyyy")}</>;
+  return <>{format(start, "d MMM yyyy")} – {format(lastDay, "d MMM yyyy")}</>;
+}
+
+/** Addresses staff as colleagues, and distinguishes "quiet day" from "filtered to nothing". */
+function EmptyMessage({ search }: { search: AppointmentSearch }) {
+  const filtered =
+    parseList(search.staff).length + parseList(search.service).length + parseList(search.status).length > 0 ||
+    search.q.trim().length > 0;
+  return filtered ? (
+    <>No appointments match these filters. Try widening them.</>
+  ) : (
+    <>Nothing left on the book for this period.</>
   );
 }
 
@@ -226,9 +421,8 @@ function CalendarView() {
   const role = tenant.data!.primaryRole!;
   const tenantLoc = tenant.data!.locationId;
 
-  const [view, setView] = useState<"day" | "week">("day");
-  const [date, setDate] = useState<Date>(startOfDay(new Date()));
-  const [locationId, setLocationId] = useState<string | null>(tenantLoc);
+  const search = Route.useSearch();
+  const patch = useFilterPatch();
   const [modal, setModal] = useState<{ open: boolean; staffId?: string; when?: Date; edit?: Appointment } | null>(null);
 
   const { data: locations = [] } = useQuery({
@@ -240,8 +434,11 @@ function CalendarView() {
     },
   });
 
-  // Auto-pick first location when owner has none
-  const effectiveLocId = locationId ?? locations[0]?.id ?? null;
+  // Only an Owner's `loc` param is honoured; every other role is pinned to
+  // their own location no matter what the URL says. RLS refuses cross-location
+  // reads underneath this, but a Manager hand-editing the URL should get their
+  // own data back rather than a convincing-looking empty calendar.
+  const effectiveLocId = resolveLocationId(role, tenantLoc, search, locations[0]?.id ?? null);
 
   const { data: staff = [] } = useQuery({
     queryKey: ["loc-staff", brandId, effectiveLocId],
@@ -276,74 +473,175 @@ function CalendarView() {
     },
   });
 
-  const rangeStart = view === "day" ? startOfDay(date) : startOfWeek(date, { weekStartsOn: 0 });
-  const rangeEnd = addDays(rangeStart, view === "day" ? 1 : 7);
-
-  const { data: appts = [] } = useQuery({
-    queryKey: ["appts", brandId, effectiveLocId, rangeStart.toISOString(), rangeEnd.toISOString()],
-    enabled: !!effectiveLocId,
+  const { data: services = [] } = useQuery({
+    queryKey: ["services", brandId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
+        .from("services")
+        .select("id, name, duration_minutes, default_price, currency")
         .eq("brand_id", brandId)
-        .eq("location_id", effectiveLocId!)
-        .gte("starts_at", rangeStart.toISOString())
-        .lt("starts_at", rangeEnd.toISOString())
-        .order("starts_at");
+        .eq("is_active", true)
+        .order("name");
       if (error) throw error;
-      return data as Appointment[];
+      return data as ServiceRow[];
     },
   });
 
-  const days = view === "day" ? [rangeStart] : Array.from({ length: 7 }, (_, i) => addDays(rangeStart, i));
+  const { start: rangeStart, end: rangeEnd } = resolveRange(search);
+  const view = search.view;
+
+  const { data: appts = [], isPending: apptsPending } = useQuery({
+    queryKey: [
+      "appts", brandId, effectiveLocId,
+      rangeStart.toISOString(), rangeEnd.toISOString(),
+      search.staff, search.service, search.status, search.q,
+    ],
+    enabled: !!effectiveLocId,
+    queryFn: async () => {
+      const { select, term } = clientSearch(search.q);
+
+      let q = supabase
+        .from("appointments")
+        .select(select)
+        .eq("brand_id", brandId)
+        .eq("location_id", effectiveLocId!)
+        .gte("starts_at", rangeStart.toISOString())
+        .lt("starts_at", rangeEnd.toISOString());
+      q = applyEntityFilters(q, search, { staff: true });
+      if (term) {
+        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`, { referencedTable: "clients" });
+      }
+
+      const { data, error } = await q.order("starts_at");
+      if (error) throw error;
+      return data as unknown as Appointment[];
+    },
+  });
+
+  // Every day the range actually covers, not a fixed seven.
+  const days = useMemo(() => {
+    const out: Date[] = [];
+    for (let d = rangeStart; d < rangeEnd; d = addDays(d, 1)) out.push(d);
+    return out;
+  }, [rangeStart, rangeEnd]);
+
+  // Columns follow the staff filter: filtering to one person should collapse
+  // the grid to that person, not leave eight empty columns beside them.
+  const selectedStaff = parseList(search.staff);
+  const visibleStaff =
+    selectedStaff.length > 0 ? staff.filter((s) => selectedStaff.includes(s.user_id)) : staff;
+
+  const staffOptions: MultiSelectOption[] = staff.map((s) => ({
+    value: s.user_id,
+    label: s.full_name || s.email || "Staff",
+  }));
+  const serviceOptions: MultiSelectOption[] = services.map((s) => ({
+    value: s.id,
+    label: s.name,
+    hint: `${s.duration_minutes}m`,
+  }));
+
+  function shift(days: number) {
+    patch({ date: formatDateParam(addDays(rangeStart, days)) });
+  }
 
   return (
     <div className="flex h-screen flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/80 px-4 py-3 backdrop-blur md:px-6">
         <div className="flex items-center gap-2">
           <h1 className="font-display text-xl font-semibold">Appointments</h1>
-          <Badge variant="outline" className="ml-2">
-            <CalendarDays className="mr-1 h-3 w-3" />
-            {format(date, view === "day" ? "EEE, MMM d" : "'Week of' MMM d")}
+          <Badge variant="outline" className="ml-2 [overflow-wrap:normal]">
+            <CalendarDays aria-hidden className="mr-1 h-3 w-3" />
+            <RangeLabel search={search} start={rangeStart} end={rangeEnd} />
           </Badge>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {role === "owner" && locations.length > 1 && (
-            <Select value={effectiveLocId ?? ""} onValueChange={(v) => setLocationId(v)}>
+            <Select value={effectiveLocId ?? ""} onValueChange={(v) => patch({ loc: v })}>
               <SelectTrigger className="h-9 w-48"><SelectValue placeholder="Location" /></SelectTrigger>
               <SelectContent>
                 {locations.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
+          <DateRangeControl search={search} onPatch={patch} />
+          {/* Always available. The range never decides the view for you. */}
           <div className="flex rounded-md border border-border p-0.5">
-            <button className={`rounded px-3 py-1 text-xs font-medium ${view === "day" ? "bg-accent text-accent-foreground" : ""}`} onClick={() => setView("day")}>Day</button>
-            <button className={`rounded px-3 py-1 text-xs font-medium ${view === "week" ? "bg-accent text-accent-foreground" : ""}`} onClick={() => setView("week")}>Week</button>
+              <button
+                type="button"
+                aria-pressed={view === "calendar"}
+                className={`rounded px-3 py-1 text-xs font-medium transition-colors active:translate-y-px ${view === "calendar" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => patch({ view: "calendar" })}
+              >
+                Calendar
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "list"}
+                className={`rounded px-3 py-1 text-xs font-medium transition-colors active:translate-y-px ${view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => patch({ view: "list" })}
+              >
+                List
+              </button>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setDate(addDays(date, view === "day" ? -1 : -7))}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button variant="outline" onClick={() => setDate(startOfDay(new Date()))}>Today</Button>
-          <Button variant="outline" size="icon" onClick={() => setDate(addDays(date, view === "day" ? 1 : 7))}><ChevronRight className="h-4 w-4" /></Button>
-          <Button onClick={() => setModal({ open: true })}><Plus className="mr-1 h-4 w-4" /> New</Button>
+          {(search.preset === "day" || search.preset === "week") && (
+            <>
+              <Button variant="outline" size="icon" aria-label="Previous period" onClick={() => shift(search.preset === "day" ? -1 : -7)}>
+                <ChevronLeft aria-hidden className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" aria-label="Next period" onClick={() => shift(search.preset === "day" ? 1 : 7)}>
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button onClick={() => setModal({ open: true })}>
+            <Plus aria-hidden className="mr-1 h-4 w-4" /> New
+          </Button>
         </div>
       </header>
+
+      <AppointmentFilters
+        search={search}
+        staffOptions={staffOptions}
+        serviceOptions={serviceOptions}
+        onPatch={patch}
+      />
+      <ActiveFilterChips
+        search={search}
+        staffOptions={staffOptions}
+        serviceOptions={serviceOptions}
+        resultCount={appts.length}
+        onPatch={patch}
+        onClearAll={() => patch({ staff: "", service: "", status: "", q: "" })}
+      />
 
       <div className="flex-1 overflow-auto">
         {!effectiveLocId ? (
           <div className="p-10 text-center text-sm text-muted-foreground">No active location.</div>
-        ) : view === "day" ? (
+        ) : apptsPending ? (
+          <div className="p-4 md:p-6"><Skeleton className="h-64 w-full" /></div>
+        ) : view === "list" ? (
+          <ApptListView
+            appts={appts}
+            staff={staff}
+            search={search}
+            onApptClick={(a) => setModal({ open: true, edit: a })}
+          />
+        ) : days.length === 1 ? (
+          // A single day is the only range where staff columns make sense —
+          // they're the point of the day view. Any wider span becomes day cards.
           <DayGrid
             day={rangeStart}
-            staff={staff}
+            staff={visibleStaff}
             appts={appts}
             onSlotClick={(staffId, when) => setModal({ open: true, staffId, when })}
             onApptClick={(a) => setModal({ open: true, edit: a })}
           />
         ) : (
-          <WeekGrid
+          <DayCardGrid
             days={days}
             appts={appts}
-            onDayClick={(d) => { setView("day"); setDate(d); }}
+            onDayClick={(d) => patch({ preset: "day", date: formatDateParam(d) })}
           />
         )}
       </div>
@@ -462,25 +760,235 @@ function ApptCardMini({ appt }: { appt: Appointment }) {
   );
 }
 
-function WeekGrid({ days, appts, onDayClick }: { days: Date[]; appts: Appointment[]; onDayClick: (d: Date) => void }) {
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Day-card calendar over whatever range is selected — a week, a month, or an
+ * arbitrary custom span.
+ *
+ * This used to hardcode seven cards, which is why a month range had to be
+ * forced into List view: rendering it as a calendar would have silently shown
+ * only the first week. Spanning the real range removes the reason for that
+ * override, so the view toggle can stay the user's choice.
+ *
+ * Cards are aligned to weekday columns with leading blanks, so a month reads as
+ * a month rather than a run of 31 tiles. Columns start Sunday, matching the
+ * week the rest of the product computes (design.md · Place).
+ */
+function DayCardGrid({
+  days, appts, onDayClick,
+}: {
+  days: Date[];
+  appts: Appointment[];
+  onDayClick: (d: Date) => void;
+}) {
+  const leadingBlanks = days.length > 0 ? days[0].getDay() : 0;
+  const today = startOfDay(new Date());
+
+  // Bucket once rather than filtering the whole array per card — a month view
+  // with a busy diary would otherwise be 31 full passes.
+  const byDay = useMemo(() => {
+    const m = new Map<string, Appointment[]>();
+    for (const a of appts) {
+      const k = format(parseISO(a.starts_at), "yyyy-MM-dd");
+      const list = m.get(k);
+      if (list) list.push(a);
+      else m.set(k, [a]);
+    }
+    return m;
+  }, [appts]);
+
   return (
-    <div className="grid grid-cols-7 gap-2 p-4">
-      {days.map((d) => {
-        const dayAppts = appts.filter((a) => isSameDay(parseISO(a.starts_at), d));
-        return (
-          <button key={d.toISOString()} onClick={() => onDayClick(d)} className="min-h-40 rounded-lg border border-border bg-card p-3 text-left transition-colors hover:border-accent/50">
-            <div className="mb-2 text-xs font-medium">{format(d, "EEE d")}</div>
-            <div className="space-y-1">
-              {dayAppts.slice(0, 6).map((a) => (
-                <div key={a.id} className={`truncate rounded border px-1.5 py-0.5 text-[10px] ${statusColor(a.status)}`}>
-                  {format(parseISO(a.starts_at), "HH:mm")}
-                </div>
-              ))}
-              {dayAppts.length > 6 && <div className="text-[10px] text-muted-foreground">+{dayAppts.length - 6} more</div>}
+    <div className="p-3 md:p-4">
+      <div className="mb-1 grid grid-cols-7 gap-1.5 md:gap-2">
+        {WEEKDAYS.map((w) => (
+          <div key={w} className="px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {w}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1.5 md:gap-2">
+        {Array.from({ length: leadingBlanks }, (_, i) => (
+          <div key={`blank-${i}`} aria-hidden />
+        ))}
+        {days.map((d) => {
+          const dayAppts = byDay.get(format(d, "yyyy-MM-dd")) ?? [];
+          const isToday = isSameDay(d, today);
+          return (
+            <button
+              key={d.toISOString()}
+              onClick={() => onDayClick(d)}
+              className={`min-h-24 rounded-lg border bg-card p-1.5 text-left transition-colors hover:border-accent/50 md:min-h-32 md:p-2 ${
+                isToday ? "border-accent" : "border-border"
+              }`}
+            >
+              <div className="mb-1 flex items-baseline justify-between gap-1">
+                <span className="tnum text-xs font-medium [overflow-wrap:normal]">{format(d, "d")}</span>
+                {dayAppts.length > 0 && (
+                  <span className="tnum text-[10px] text-muted-foreground [overflow-wrap:normal]">
+                    {dayAppts.length}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {dayAppts.slice(0, 3).map((a) => (
+                  <div
+                    key={a.id}
+                    className={`truncate rounded border px-1 py-0.5 text-[10px] ${statusColor(a.status)}`}
+                  >
+                    {format(parseISO(a.starts_at), "HH:mm")}
+                  </div>
+                ))}
+                {dayAppts.length > 3 && (
+                  <div className="text-[10px] text-muted-foreground">+{dayAppts.length - 3} more</div>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The view a date range implies. A month or a custom span has no calendar-grid
+ * representation — staff columns only exist for one day, and the week grid is
+ * seven fixed cards — so a range wider than a week renders here instead.
+ *
+ * Client and service names are resolved in two batched queries rather than the
+ * per-card lookups the grid uses: a month of appointments would otherwise fire
+ * several hundred requests to render one screen.
+ */
+function ApptListView({
+  appts, staff, search, onApptClick,
+}: {
+  appts: Appointment[];
+  staff: StaffOpt[];
+  search: AppointmentSearch;
+  onApptClick: (a: Appointment) => void;
+}) {
+  const clientIds = useMemo(
+    () => Array.from(new Set(appts.map((a) => a.client_id))).filter(Boolean),
+    [appts],
+  );
+  const serviceIds = useMemo(
+    () => Array.from(new Set(appts.map((a) => a.service_id).filter(Boolean))) as string[],
+    [appts],
+  );
+
+  const { data: clientsById = {} } = useQuery({
+    queryKey: ["appt-list-clients", clientIds],
+    enabled: clientIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clients").select("id, name, phone").in("id", clientIds);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((c) => [c.id, c])) as Record<string, ClientRow>;
+    },
+  });
+  const { data: servicesById = {} } = useQuery({
+    queryKey: ["appt-list-services", serviceIds],
+    enabled: serviceIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("services").select("id, name").in("id", serviceIds);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((s) => [s.id, s])) as Record<string, { id: string; name: string }>;
+    },
+  });
+
+  const staffById = useMemo(
+    () => Object.fromEntries(staff.map((s) => [s.user_id, s])) as Record<string, StaffOpt>,
+    [staff],
+  );
+
+  // Grouped by day so a month-long range still reads as a diary rather than an
+  // undifferentiated wall of rows.
+  const byDay = useMemo(() => {
+    const groups = new Map<string, Appointment[]>();
+    for (const a of appts) {
+      const key = format(parseISO(a.starts_at), "yyyy-MM-dd");
+      const list = groups.get(key);
+      if (list) list.push(a);
+      else groups.set(key, [a]);
+    }
+    return Array.from(groups.entries());
+  }, [appts]);
+
+  if (appts.length === 0) {
+    return (
+      <div className="p-4 md:p-6">
+        <Card className="p-10 text-center text-sm text-muted-foreground">
+          <EmptyMessage search={search} />
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="space-y-6">
+        {byDay.map(([day, rows]) => (
+          <section key={day}>
+            <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {format(parseISO(day), "EEEE, d MMMM yyyy")}
+              <span className="tnum ml-2 font-normal normal-case tracking-normal [overflow-wrap:normal]">
+                {rows.length}
+              </span>
+            </h2>
+            {/* Hairline grid, not floating cards — the list should read as one
+                instrument (design.md · Component voice). */}
+            <div className="overflow-hidden rounded-lg border border-border bg-border">
+              <div className="grid gap-px">
+                {rows.map((a) => {
+                  const client = clientsById[a.client_id];
+                  const svc = a.service_id ? servicesById[a.service_id] : null;
+                  const who = staffById[a.staff_user_id];
+                  return (
+                    // `min-w-0` is load-bearing: a grid child defaults to
+                    // min-width:auto and will not shrink below its content, so
+                    // without it the row overflows on a phone and clips the
+                    // status menu straight off the screen.
+                    <div key={a.id} className="flex min-w-0 items-center gap-2 bg-card px-3 py-2.5 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() => onApptClick(a)}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left sm:gap-3"
+                      >
+                        {/* End time is the first thing to go on a narrow
+                            screen — the start time is what staff scan for. */}
+                        <span className="tnum shrink-0 text-xs font-medium [overflow-wrap:normal] sm:w-24 sm:text-sm">
+                          {format(parseISO(a.starts_at), "HH:mm")}
+                          <span className="hidden sm:inline">
+                            –{format(parseISO(a.ends_at), "HH:mm")}
+                          </span>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm" dir="auto">
+                            {client?.name ?? "Client"}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground" dir="auto">
+                            {svc?.name ?? "—"}
+                            {who ? ` · ${who.full_name || who.email || "Staff"}` : ""}
+                          </span>
+                        </span>
+                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${statusColor(a.status)}`}>
+                          {a.status.replace("_", " ")}
+                        </span>
+                        {a.price != null && (
+                          <span className="tnum hidden w-24 shrink-0 text-right text-sm [overflow-wrap:normal] sm:block">
+                            {formatMoney(a.price, a.currency)}
+                          </span>
+                        )}
+                      </button>
+                      <StatusMenu appt={a} />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </button>
-        );
-      })}
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

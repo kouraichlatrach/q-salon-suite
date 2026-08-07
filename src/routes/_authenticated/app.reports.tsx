@@ -1,44 +1,27 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link, stripSearchParams, useNavigate } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { addDays, format } from "date-fns";
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  startOfDay,
-  endOfDay,
-  startOfWeek,
-  endOfWeek,
-  subMonths,
-  eachDayOfInterval,
-} from "date-fns";
-import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
-import { CalendarIcon, TrendingUp, Package, Users as UsersIcon, AlertTriangle } from "lucide-react";
+import { AlertTriangle, Package, TrendingUp, Users as UsersIcon } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/hooks/use-tenant";
 import { AppShell } from "@/components/app-shell";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -54,26 +37,60 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { DateRangeControl, REPORT_PRESETS } from "@/components/appointment-filters";
+import {
+  BreakdownBars,
+  ReliabilityTable,
+  RetentionSplit,
+  TrendCharts,
+  useChartPalette,
+} from "@/components/report-charts";
+import { formatMoney, splitMoney } from "@/lib/money";
+import {
+  APPOINTMENT_SEARCH_DEFAULTS,
+  type AppointmentSearch,
+  appointmentSearchSchema,
+  parseList,
+  REPORT_SCOPE_DENY,
+  resolveRange,
+  resolveReportLocationId,
+  toList,
+} from "@/lib/appointment-filters";
+import {
+  averageTicket,
+  currenciesPresent,
+  reliabilityBreakdown,
+  retention,
+  revenueBreakdown,
+  revenueSeries,
+  volumeSeries,
+  type ApptRow,
+  type IncomeRow,
+} from "@/lib/report-stats";
 
 export const Route = createFileRoute("/_authenticated/app/reports")({
+  // Same URL-backed filter state as Appointments — a filtered report is a link
+  // an Owner should be able to send to their accountant.
+  validateSearch: zodValidator(appointmentSearchSchema),
+  search: { middlewares: [stripSearchParams(APPOINTMENT_SEARCH_DEFAULTS)] },
   head: () => ({
-    meta: [
-      { title: "Reports — Q-Salon Suite" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Reports — Q-Salon Suite" }, { name: "robots", content: "noindex" }],
   }),
   component: ReportsPage,
 });
 
-const CHART_COLORS = ["hsl(var(--accent))", "hsl(var(--primary))", "#8B7355", "#C89B7B", "#7A9E7E"];
-
-function fmtQAR(n: number, currency = "QAR"): string {
-  return `${currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })}`;
-}
-
 type LocationRow = { id: string; name: string };
-type Preset = "today" | "week" | "month" | "last_month" | "custom";
+
+function useFilterPatch() {
+  const navigate = useNavigate({ from: Route.fullPath });
+  return useCallback(
+    (patch: Partial<AppointmentSearch>) => {
+      navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+    },
+    [navigate],
+  );
+}
 
 function ReportsPage() {
   const tenant = useTenant();
@@ -82,7 +99,7 @@ function ReportsPage() {
   if (tenant.isLoading) {
     return (
       <AppShell>
-        <div className="p-8 space-y-4">
+        <div className="space-y-4 p-8">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-96 w-full" />
         </div>
@@ -90,6 +107,8 @@ function ReportsPage() {
     );
   }
 
+  // Unchanged gate: Reports stays Owner + Manager only. Receptionists and Staff
+  // have never had access and this redesign does not widen that.
   if (role !== "owner" && role !== "manager") {
     return (
       <AppShell>
@@ -112,58 +131,270 @@ function ReportsPage() {
   );
 }
 
+/** PostgREST `in.(…)` rides in the query string, so long id lists need chunking. */
+async function clientsSeenBefore(
+  brandId: string,
+  locationId: string | null,
+  beforeIso: string,
+  clientIds: string[],
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  for (let i = 0; i < clientIds.length; i += 150) {
+    const chunk = clientIds.slice(i, i + 150);
+    let q = supabase
+      .from("appointments")
+      .select("client_id")
+      .eq("brand_id", brandId)
+      .lt("starts_at", beforeIso)
+      .neq("status", "cancelled")
+      .in("client_id", chunk);
+    // Same scope as the range query. Asking brand-wide for a location-scoped
+    // Manager would reveal that a client has visited a location they cannot see.
+    if (locationId) q = q.eq("location_id", locationId);
+    const { data, error } = await q;
+    if (error) throw error;
+    for (const r of data ?? []) found.add(r.client_id as string);
+  }
+  return found;
+}
+
 function ReportsInner() {
   const tenant = useTenant();
   const role = tenant.data!.primaryRole!;
   const brandId = tenant.data!.brandId!;
-  const managerLocationId = role === "manager" ? tenant.data!.locationId : null;
+  const tenantLoc = tenant.data!.locationId;
 
-  const [preset, setPreset] = useState<Preset>("month");
-  const [from, setFrom] = useState<Date>(startOfMonth(new Date()));
-  const [to, setTo] = useState<Date>(endOfMonth(new Date()));
-  const [locationId, setLocationId] = useState<string | "all">(managerLocationId ?? "all");
+  const search = Route.useSearch();
+  const patch = useFilterPatch();
+  const { start, end } = resolveRange(search);
+
+  const scope = resolveReportLocationId(role, tenantLoc, search.loc);
+  const denied = scope === REPORT_SCOPE_DENY;
+  const locationId = denied ? null : (scope as string | null);
 
   const locationsQ = useQuery({
-    queryKey: ["report-locations", brandId],
+    queryKey: ["report-locations", brandId, role, locationId],
+    enabled: !denied,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("locations")
-        .select("id, name")
-        .eq("brand_id", brandId)
-        .order("name");
+      let q = supabase.from("locations").select("id, name").eq("brand_id", brandId).order("name");
+      // An Owner needs the whole list to populate the switcher. Everyone else
+      // is pinned to one location and only needs its name — this used to be
+      // skipped entirely for them, so the header had no name to show and fell
+      // back to a generic label. Fetching just their own row keeps sibling
+      // branch names out of a Manager's client memory for no benefit.
+      if (role !== "owner") {
+        if (!locationId) return [] as LocationRow[];
+        q = q.eq("id", locationId);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as LocationRow[];
     },
   });
 
-  function applyPreset(p: Preset) {
-    setPreset(p);
-    const now = new Date();
-    if (p === "today") { setFrom(startOfDay(now)); setTo(endOfDay(now)); }
-    else if (p === "week") { setFrom(startOfWeek(now, { weekStartsOn: 1 })); setTo(endOfWeek(now, { weekStartsOn: 1 })); }
-    else if (p === "month") { setFrom(startOfMonth(now)); setTo(endOfMonth(now)); }
-    else if (p === "last_month") {
-      const lm = subMonths(now, 1);
-      setFrom(startOfMonth(lm)); setTo(endOfMonth(lm));
-    }
+  const servicesQ = useQuery({
+    queryKey: ["report-services", brandId],
+    enabled: !denied,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("id, name")
+        .eq("brand_id", brandId)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  // Bookable staff only, scoped to the location in view — the same rule the
+  // Appointments picker uses, so a Manager's filter can never list colleagues
+  // from a location they don't administer.
+  const staffQ = useQuery({
+    queryKey: ["report-staff", brandId, locationId],
+    enabled: !denied,
+    queryFn: async () => {
+      let q = supabase
+        .from("user_roles")
+        .select("user_id, location_id")
+        .eq("brand_id", brandId)
+        .eq("role", "staff")
+        .not("user_id", "is", null);
+      if (locationId) q = q.eq("location_id", locationId);
+      const { data, error } = await q;
+      if (error) throw error;
+      const ids = Array.from(new Set((data ?? []).map((r) => r.user_id).filter(Boolean))) as string[];
+      if (ids.length === 0) return [] as { id: string; name: string }[];
+      const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", ids);
+      return (profs ?? []).map((p) => ({
+        id: p.id as string,
+        name: (p.full_name as string) || (p.email as string) || "—",
+      }));
+    },
+  });
+
+  const staffFilter = parseList(search.staff);
+  const serviceFilter = parseList(search.service);
+  const entityFiltered = staffFilter.length > 0 || serviceFilter.length > 0;
+
+  const dataQ = useQuery({
+    queryKey: [
+      "report-data", brandId, locationId,
+      start.toISOString(), end.toISOString(),
+      search.staff, search.service,
+    ],
+    enabled: !denied,
+    queryFn: async () => {
+      // --- appointments in range, by starts_at
+      let apptQ = supabase
+        .from("appointments")
+        .select("id, client_id, staff_user_id, service_id, status, starts_at, location_id")
+        .eq("brand_id", brandId)
+        .gte("starts_at", start.toISOString())
+        .lt("starts_at", end.toISOString());
+      if (locationId) apptQ = apptQ.eq("location_id", locationId);
+      if (staffFilter.length) apptQ = apptQ.in("staff_user_id", staffFilter);
+      if (serviceFilter.length) apptQ = apptQ.in("service_id", serviceFilter);
+      const { data: apptData, error: apptErr } = await apptQ;
+      if (apptErr) throw apptErr;
+      const appts = (apptData ?? []) as ApptRow[];
+
+      // --- income in range, by collected_at
+      //
+      // With a staff/service filter active the join is INNER, so income that
+      // isn't tied to a matching appointment drops out — a gift-card sale
+      // genuinely does not belong to "revenue for Amal". With no filter the
+      // plain select keeps that unattributed income, and it surfaces as its own
+      // labelled row rather than vanishing.
+      let incQ = supabase
+        .from("income_records")
+        .select(entityFiltered ? "amount, currency, collected_at, appointment_id, location_id, appointments!inner(id)" : "amount, currency, collected_at, appointment_id, location_id")
+        .eq("brand_id", brandId)
+        .gte("collected_at", start.toISOString())
+        .lt("collected_at", end.toISOString());
+      if (locationId) incQ = incQ.eq("location_id", locationId);
+      if (staffFilter.length) incQ = incQ.in("appointments.staff_user_id", staffFilter);
+      if (serviceFilter.length) incQ = incQ.in("appointments.service_id", serviceFilter);
+      const { data: incData, error: incErr } = await incQ;
+      if (incErr) throw incErr;
+      const income = (incData ?? []) as unknown as IncomeRow[];
+
+      // --- retention: has each in-range client been seen here before?
+      const inRangeClients = Array.from(
+        new Set(appts.filter((a) => a.status !== "cancelled").map((a) => a.client_id)),
+      );
+      const priorClients = inRangeClients.length
+        ? await clientsSeenBefore(brandId, locationId, start.toISOString(), inRangeClients)
+        : new Set<string>();
+
+      // Names for whoever actually appears in the data — which is not the same
+      // set as the filter options. The filter lists bookable staff only (you
+      // must not be able to filter by an account that can't hold appointments),
+      // but historic rows exist against Owner/Manager/Receptionist accounts
+      // (the §4.13 cleanup found 125). Mapping only bookable staff rendered
+      // those as "Unknown staff" — accurate but useless to an Owner asking who
+      // earned what. No new exposure: these appointment rows are already
+      // visible, this only resolves a name already reachable via profiles RLS.
+      const actorIds = Array.from(new Set(appts.map((a) => a.staff_user_id).filter(Boolean)));
+      const actorNames = new Map<string, string>();
+      for (let i = 0; i < actorIds.length; i += 150) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", actorIds.slice(i, i + 150));
+        for (const p of profs ?? []) {
+          actorNames.set(p.id as string, (p.full_name as string) || (p.email as string) || "—");
+        }
+      }
+
+      return { appts, income, priorClients, actorNames };
+    },
+  });
+
+  // Memoised so the `?? []` fallback keeps a stable identity — otherwise every
+  // render hands the name-map memos a brand-new array and they recompute.
+  const services = useMemo(() => servicesQ.data ?? [], [servicesQ.data]);
+  const staff = useMemo(() => staffQ.data ?? [], [staffQ.data]);
+  const serviceName = useMemo(() => {
+    const m = new Map(services.map((s) => [s.id, s.name]));
+    return (id: string) => m.get(id) ?? "Unknown service";
+  }, [services]);
+  const staffName = useMemo(() => {
+    const m = new Map(staff.map((s) => [s.id, s.name]));
+    // Data-derived names win: they cover accounts that aren't bookable but do
+    // hold historic appointments.
+    for (const [id, name] of dataQ.data?.actorNames ?? []) m.set(id, name);
+    return (id: string) => m.get(id) ?? "Unknown staff";
+  }, [staff, dataQ.data]);
+
+  const stats = useMemo(() => {
+    if (!dataQ.data) return null;
+    const { appts, income, priorClients } = dataQ.data;
+    const apptById = new Map(appts.map((a) => [a.id, a]));
+
+    const byService = revenueBreakdown(income, apptById, "service", serviceName);
+    const byStaff = revenueBreakdown(income, apptById, "staff", staffName);
+    const ticket = averageTicket(income, apptById);
+    const vol = volumeSeries(appts, start, end);
+    const rev = revenueSeries(income, vol.points, vol.bucket);
+    const ret = retention(appts, priorClients);
+    const currencies = currenciesPresent(income);
+
+    return {
+      byService,
+      byStaff,
+      ticket,
+      vol,
+      rev,
+      ret,
+      currency: currencies[0] ?? "QAR",
+      mixedCurrency: currencies.length > 1,
+      staffReliability: reliabilityBreakdown(appts, "staff", staffName),
+      serviceReliability: reliabilityBreakdown(appts, "service", serviceName),
+      completed: appts.filter((a) => a.status === "completed").length,
+    };
+  }, [dataQ.data, serviceName, staffName, start, end]);
+
+  if (denied) {
+    return (
+      <div className="p-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl">No location assigned</CardTitle>
+            <CardDescription>
+              Reports are scoped to a location, and your account isn't attached to one yet. Ask an
+              owner to assign you a location — we won't show brand-wide figures instead.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
   }
 
-  const effectiveLocationId = role === "manager" ? managerLocationId : (locationId === "all" ? null : locationId);
-  const rangeFromIso = startOfDay(from).toISOString();
-  const rangeToIso = endOfDay(to).toISOString();
+  const rangeLabel =
+    search.preset === "month" || search.preset === "last_month"
+      ? format(start, "MMMM yyyy")
+      : `${format(start, "d MMM yyyy")} – ${format(addDays(end, -1), "d MMM yyyy")}`;
+
+  const scopeLabel = locationId
+    ? (locationsQ.data ?? []).find((l) => l.id === locationId)?.name ?? "This location"
+    : "All locations";
+
+  const staffOptions: MultiSelectOption[] = staff.map((s) => ({ value: s.id, label: s.name }));
+  const serviceOptions: MultiSelectOption[] = services.map((s) => ({ value: s.id, label: s.name }));
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6 p-4 md:p-8">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-semibold">Reports</h1>
-          <p className="text-sm text-muted-foreground">Revenue, stock and staff performance at a glance.</p>
+          <p className="text-sm text-muted-foreground">
+            {scopeLabel} · {rangeLabel}
+          </p>
         </div>
-
         <div className="flex flex-wrap items-center gap-2">
-          {role === "owner" && (
-            <Select value={locationId} onValueChange={(v) => setLocationId(v as string)}>
-              <SelectTrigger className="w-[200px]">
+          {role === "owner" && (locationsQ.data ?? []).length > 0 && (
+            <Select value={search.loc || "all"} onValueChange={(v) => patch({ loc: v === "all" ? "" : v })}>
+              <SelectTrigger className="h-9 w-[190px]">
                 <SelectValue placeholder="Location" />
               </SelectTrigger>
               <SelectContent>
@@ -174,322 +405,215 @@ function ReportsInner() {
               </SelectContent>
             </Select>
           )}
-
-          <div className="flex rounded-md border border-border bg-card p-0.5">
-            {[
-              { k: "today" as Preset, label: "Today" },
-              { k: "week" as Preset, label: "This week" },
-              { k: "month" as Preset, label: "This month" },
-              { k: "last_month" as Preset, label: "Last month" },
-            ].map((p) => (
-              <button
-                key={p.k}
-                onClick={() => applyPreset(p.k)}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium rounded-sm transition-colors",
-                  preset === p.k ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {format(from, "MMM d")} – {format(to, "MMM d, yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 pointer-events-auto" align="end">
-              <Calendar
-                mode="range"
-                selected={{ from, to }}
-                onSelect={(range) => {
-                  if (range?.from) setFrom(range.from);
-                  if (range?.to) setTo(range.to);
-                  if (range?.from || range?.to) setPreset("custom");
-                }}
-                numberOfMonths={2}
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
+          <DateRangeControl
+            search={search}
+            onPatch={patch}
+            presets={REPORT_PRESETS}
+          />
         </div>
+      </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <MultiSelect
+          label="Staff"
+          options={staffOptions}
+          selected={staffFilter}
+          onChange={(next) => patch({ staff: toList(next) })}
+          searchPlaceholder="Find a colleague…"
+          emptyText="No bookable staff in scope."
+          className="w-[9.5rem]"
+        />
+        <MultiSelect
+          label="Service"
+          options={serviceOptions}
+          selected={serviceFilter}
+          onChange={(next) => patch({ service: toList(next) })}
+          searchPlaceholder="Find a service…"
+          emptyText="No services."
+          className="w-[9.5rem]"
+        />
+        {entityFiltered && (
+          <>
+            <span className="text-xs text-muted-foreground">
+              Filtered — sales not tied to a matching appointment (gift cards, packages) are excluded.
+            </span>
+            <button
+              type="button"
+              onClick={() => patch({ staff: "", service: "" })}
+              className="rounded px-1.5 py-0.5 text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
+            >
+              Clear
+            </button>
+          </>
+        )}
       </div>
 
-      <Tabs defaultValue="revenue" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="revenue"><TrendingUp className="mr-2 h-4 w-4" />Revenue</TabsTrigger>
-          <TabsTrigger value="stock"><Package className="mr-2 h-4 w-4" />Stock</TabsTrigger>
-          <TabsTrigger value="staff"><UsersIcon className="mr-2 h-4 w-4" />Staff performance</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="revenue">
-          <RevenueReport
-            brandId={brandId}
-            locationId={effectiveLocationId}
-            fromIso={rangeFromIso}
-            toIso={rangeToIso}
-            from={from}
-            to={to}
-          />
-        </TabsContent>
-
-        <TabsContent value="stock">
-          <StockReport
-            brandId={brandId}
-            locationId={effectiveLocationId}
-            role={role}
-            fromIso={rangeFromIso}
-            toIso={rangeToIso}
-            locations={locationsQ.data ?? []}
-          />
-        </TabsContent>
-
-        <TabsContent value="staff">
-          <StaffReport
-            brandId={brandId}
-            locationId={effectiveLocationId}
-            fromIso={rangeFromIso}
-            toIso={rangeToIso}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-// =========================================================
-// REVENUE
-// =========================================================
-
-type IncomeRow = {
-  id: string;
-  amount: number;
-  currency: string;
-  method: "cash" | "card" | "bank_transfer";
-  collected_at: string;
-  appointment_id: string | null;
-  location_id: string;
-};
-
-function RevenueReport({
-  brandId, locationId, fromIso, toIso, from, to,
-}: {
-  brandId: string;
-  locationId: string | null;
-  fromIso: string;
-  toIso: string;
-  from: Date;
-  to: Date;
-}) {
-  const q = useQuery({
-    queryKey: ["report-revenue", brandId, locationId, fromIso, toIso],
-    queryFn: async () => {
-      let incomeQ = supabase
-        .from("income_records")
-        .select("id, amount, currency, method, collected_at, appointment_id, location_id")
-        .eq("brand_id", brandId)
-        .gte("collected_at", fromIso)
-        .lte("collected_at", toIso);
-      if (locationId) incomeQ = incomeQ.eq("location_id", locationId);
-
-      const { data: incomeRaw, error: incErr } = await incomeQ;
-      if (incErr) throw incErr;
-      const income = (incomeRaw ?? []) as IncomeRow[];
-
-      const apptIds = Array.from(new Set(income.map((i) => i.appointment_id).filter(Boolean))) as string[];
-
-      let appts: { id: string; service_id: string | null; staff_user_id: string; status: string }[] = [];
-      if (apptIds.length) {
-        const { data, error } = await supabase
-          .from("appointments")
-          .select("id, service_id, staff_user_id, status")
-          .in("id", apptIds);
-        if (error) throw error;
-        appts = data ?? [];
-      }
-
-      const serviceIds = Array.from(new Set(appts.map((a) => a.service_id).filter(Boolean))) as string[];
-      const staffIds = Array.from(new Set(appts.map((a) => a.staff_user_id)));
-
-      const [servicesRes, staffRes, apptCountRes] = await Promise.all([
-        serviceIds.length
-          ? supabase.from("services").select("id, name").in("id", serviceIds)
-          : Promise.resolve({ data: [], error: null }),
-        staffIds.length
-          ? supabase.from("profiles").select("id, full_name, email").in("id", staffIds)
-          : Promise.resolve({ data: [], error: null }),
+      {dataQ.isPending || !stats ? (
+        <Skeleton className="h-96 w-full" />
+      ) : (
         (() => {
-          let c = supabase
-            .from("appointments")
-            .select("id", { count: "exact", head: true })
-            .eq("brand_id", brandId)
-            .eq("status", "completed")
-            .gte("starts_at", fromIso)
-            .lte("starts_at", toIso);
-          if (locationId) c = c.eq("location_id", locationId);
-          return c;
-        })(),
-      ]);
-      if (servicesRes.error) throw servicesRes.error;
-      if (staffRes.error) throw staffRes.error;
-
-      const serviceMap = new Map<string, string>((servicesRes.data ?? []).map((s: any) => [s.id, s.name]));
-      const staffMap = new Map<string, string>((staffRes.data ?? []).map((s: any) => [s.id, s.full_name || s.email || "—"]));
-      const apptMap = new Map(appts.map((a) => [a.id, a]));
-
-      const totalRevenue = income.reduce((s, r) => s + Number(r.amount), 0);
-      const currency = income[0]?.currency ?? "QAR";
-      const completedCount = apptCountRes.count ?? 0;
-      const avgTicket = completedCount > 0 ? totalRevenue / completedCount : 0;
-
-      // by service
-      const byService = new Map<string, number>();
-      const byStaff = new Map<string, number>();
-      for (const r of income) {
-        const a = r.appointment_id ? apptMap.get(r.appointment_id) : null;
-        const sName = a?.service_id ? (serviceMap.get(a.service_id) ?? "Unknown") : "Uncategorised";
-        byService.set(sName, (byService.get(sName) ?? 0) + Number(r.amount));
-        if (a) {
-          const stName = staffMap.get(a.staff_user_id) ?? "—";
-          byStaff.set(stName, (byStaff.get(stName) ?? 0) + Number(r.amount));
-        }
-      }
-
-      // daily buckets
-      const days = eachDayOfInterval({ start: from, end: to });
-      const dayMap = new Map<string, number>(days.map((d) => [format(d, "yyyy-MM-dd"), 0]));
-      for (const r of income) {
-        const k = format(new Date(r.collected_at), "yyyy-MM-dd");
-        if (dayMap.has(k)) dayMap.set(k, dayMap.get(k)! + Number(r.amount));
-      }
-      const daily = Array.from(dayMap.entries()).map(([d, v]) => ({ date: format(new Date(d), "MMM d"), revenue: v }));
-
-      // by method
-      const byMethod: Record<string, number> = { cash: 0, card: 0, bank_transfer: 0 };
-      for (const r of income) byMethod[r.method] = (byMethod[r.method] ?? 0) + Number(r.amount);
-
-      return {
-        totalRevenue,
-        completedCount,
-        avgTicket,
-        currency,
-        byService: Array.from(byService.entries()).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount),
-        byStaff: Array.from(byStaff.entries()).map(([name, amount]) => ({ name, amount })).sort((a, b) => b.amount - a.amount),
-        daily,
-        methodData: Object.entries(byMethod).map(([name, value]) => ({ name: name.replace("_", " "), value })),
-      };
-    },
-  });
-
-  if (q.isLoading) return <Skeleton className="h-96 w-full" />;
-  if (!q.data) return null;
-  const d = q.data;
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        <SummaryCard label="Total revenue" value={fmtQAR(d.totalRevenue, d.currency)} />
-        <SummaryCard label="Appointments completed" value={d.completedCount.toLocaleString()} />
-        <SummaryCard label="Average ticket" value={fmtQAR(d.avgTicket, d.currency)} />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-display text-lg">Revenue over time</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={d.daily}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip formatter={(v: number) => fmtQAR(v, d.currency)} />
-                <Line type="monotone" dataKey="revenue" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">By service</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.byService.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No revenue in this range.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow><TableHead>Service</TableHead><TableHead className="text-right">Revenue</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {d.byService.slice(0, 10).map((s) => (
-                    <TableRow key={s.name}><TableCell>{s.name}</TableCell><TableCell className="text-right font-medium">{fmtQAR(s.amount, d.currency)}</TableCell></TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">By staff</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.byStaff.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No revenue in this range.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow><TableHead>Staff</TableHead><TableHead className="text-right">Revenue</TableHead></TableRow>
-                </TableHeader>
-                <TableBody>
-                  {d.byStaff.slice(0, 10).map((s) => (
-                    <TableRow key={s.name}><TableCell>{s.name}</TableCell><TableCell className="text-right font-medium">{fmtQAR(s.amount, d.currency)}</TableCell></TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-display text-lg">Payment methods</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {d.totalRevenue === 0 ? (
-            <p className="text-sm text-muted-foreground">No payments in this range.</p>
-          ) : (
-            <div className="h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={d.methodData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(e: any) => `${e.name}: ${fmtQAR(e.value, d.currency)}`}>
-                    {d.methodData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                  </Pie>
-                  <Legend />
-                  <Tooltip formatter={(v: number) => fmtQAR(v, d.currency)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          const revenueParts = splitMoney(stats.byService.total, stats.currency);
+          const ticketParts = splitMoney(stats.ticket.value, stats.currency);
+          return (
+        <>
+          {stats.mixedCurrency && (
+            <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+              ⚠ This period contains more than one currency. Totals below add them together and are
+              not meaningful — filter to a single location to compare like with like.
+            </p>
           )}
-        </CardContent>
-      </Card>
+
+          {/* Hero stat band. Hairline grid over a border-coloured background, not
+              floating cards — a dashboard reads as one instrument. */}
+          <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <HeroStat
+              label="Revenue collected"
+              value={revenueParts.amount}
+              unit={revenueParts.unit}
+              hint="Counted when the money arrived"
+              lead
+            />
+            <HeroStat
+              label="Appointments completed"
+              value={stats.completed.toLocaleString()}
+              hint="Counted by visit date"
+            />
+            <HeroStat
+              label="Average per paying visit"
+              value={ticketParts.amount}
+              unit={ticketParts.unit}
+              hint={`${stats.ticket.visits} visit${stats.ticket.visits === 1 ? "" : "s"} took payment`}
+            />
+            <HeroStat
+              label="First-time clients"
+              value={stats.ret.newClients.toLocaleString()}
+              hint={`of ${stats.ret.totalClients} who attended`}
+            />
+          </div>
+
+          <Tabs defaultValue="revenue" className="space-y-4">
+            {/* Three tabs with icons exceed 320px; scroll rather than clip. */}
+            <TabsList className="max-w-full justify-start overflow-x-auto">
+              <TabsTrigger value="revenue">
+                <TrendingUp aria-hidden className="mr-2 h-4 w-4" />Revenue
+              </TabsTrigger>
+              <TabsTrigger value="performance">
+                <UsersIcon aria-hidden className="mr-2 h-4 w-4" />Performance
+              </TabsTrigger>
+              <TabsTrigger value="stock">
+                <Package aria-hidden className="mr-2 h-4 w-4" />Stock
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="revenue" className="space-y-px overflow-hidden rounded-lg border border-border bg-border">
+              <TrendCharts
+                revenue={stats.rev}
+                volume={stats.vol.points}
+                currency={stats.currency}
+                bucket={stats.vol.bucket}
+              />
+              <div className="grid gap-px bg-border md:grid-cols-2">
+                <BreakdownBars
+                  title="Revenue by service"
+                  rows={stats.byService.rows}
+                  total={stats.byService.total}
+                  currency={stats.currency}
+                  colorIndex={0}
+                  emptyText="No revenue in this period."
+                />
+                <BreakdownBars
+                  title="Revenue by staff"
+                  note="Sums to the same total as by-service — sales with no appointment appear in both as one labelled row."
+                  rows={stats.byStaff.rows}
+                  total={stats.byStaff.total}
+                  currency={stats.currency}
+                  colorIndex={1}
+                  emptyText="No revenue in this period."
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="performance" className="space-y-px overflow-hidden rounded-lg border border-border bg-border">
+              <RetentionSplit
+                newClients={stats.ret.newClients}
+                returningClients={stats.ret.returningClients}
+                totalClients={stats.ret.totalClients}
+                scopeNote={
+                  locationId
+                    ? "“Returning” means the client has attended this location before. Visits to other locations aren't counted here, and aren't visible from this scope."
+                    : "“Returning” means the client has attended this brand before the selected period."
+                }
+              />
+              <div className="grid gap-px bg-border md:grid-cols-2">
+                <ReliabilityTable
+                  title="Reliability by staff"
+                  rows={stats.staffReliability}
+                  entityLabel="Staff"
+                  emptyText="No appointments in this period."
+                />
+                <ReliabilityTable
+                  title="Reliability by service"
+                  rows={stats.serviceReliability}
+                  entityLabel="Service"
+                  emptyText="No appointments in this period."
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="stock">
+              <StockReport
+                brandId={brandId}
+                locationId={locationId}
+                role={role}
+                fromIso={start.toISOString()}
+                toIso={end.toISOString()}
+                locations={locationsQ.data ?? []}
+              />
+            </TabsContent>
+          </Tabs>
+        </>
+          );
+        })()
+      )}
+    </div>
+  );
+}
+
+function HeroStat({
+  label, value, unit, hint, lead = false,
+}: {
+  label: string;
+  value: string;
+  /** Rendered smaller beside the figure, never on its own line. */
+  unit?: string;
+  hint: string;
+  lead?: boolean;
+}) {
+  return (
+    <div className="bg-card p-4 md:p-5">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      {/* `whitespace-nowrap` as well as `[overflow-wrap:normal]`: the latter
+          stops a break inside the numeral, the former stops one at the space
+          before the currency. A figure never wraps (design.md · Typography). */}
+      <div
+        className={`tnum mt-1 whitespace-nowrap font-display font-semibold [overflow-wrap:normal] ${
+          lead ? "text-3xl leading-none md:text-4xl" : "text-2xl"
+        }`}
+      >
+        {value}
+        {unit && (
+          <span className={`ml-1 font-normal text-muted-foreground ${lead ? "text-base" : "text-sm"}`}>
+            {unit}
+          </span>
+        )}
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
 }
 
 // =========================================================
-// STOCK
+// STOCK — unchanged behaviour, re-skinned to the hairline grid
 // =========================================================
 
 function StockReport({
@@ -502,6 +626,7 @@ function StockReport({
   toIso: string;
   locations: LocationRow[];
 }) {
+  const palette = useChartPalette();
   const q = useQuery({
     queryKey: ["report-stock", brandId, locationId, fromIso, toIso],
     queryFn: async () => {
@@ -523,15 +648,14 @@ function StockReport({
         .select("product_id, location_id, quantity, movement_type, created_at")
         .eq("movement_type", "usage")
         .gte("created_at", fromIso)
-        .lte("created_at", toIso);
+        .lt("created_at", toIso);
       if (locationId) mvQ = mvQ.eq("location_id", locationId);
       const { data: movements, error: mErr } = await mvQ;
       if (mErr) throw mErr;
 
-      const productMap = new Map((products ?? []).map((p: any) => [p.id, p]));
+      const productMap = new Map((products ?? []).map((p) => [p.id, p] as const));
       const locationMap = new Map(locations.map((l) => [l.id, l.name]));
 
-      // Stock value
       let totalValue = 0;
       const byLocation = new Map<string, number>();
       const currency = (products ?? [])[0]?.currency ?? "QAR";
@@ -543,26 +667,38 @@ function StockReport({
         byLocation.set(row.location_id, (byLocation.get(row.location_id) ?? 0) + v);
       }
 
-      // Fastest moving
       const usageMap = new Map<string, number>();
       for (const m of movements ?? []) {
         usageMap.set(m.product_id, (usageMap.get(m.product_id) ?? 0) + Number(m.quantity));
       }
       const fastest = Array.from(usageMap.entries())
-        .map(([pid, qty]) => ({ id: pid, name: productMap.get(pid)?.name ?? "Unknown", unit: productMap.get(pid)?.unit ?? "", qty }))
+        .map(([pid, qty]) => ({
+          id: pid,
+          name: productMap.get(pid)?.name ?? "Unknown",
+          unit: productMap.get(pid)?.unit ?? "",
+          qty,
+        }))
         .sort((a, b) => b.qty - a.qty)
         .slice(0, 10);
 
-      // Low / out
       const lowStock = (stock ?? [])
-        .map((row: any) => {
+        .map((row) => {
           const p = productMap.get(row.product_id);
           const qty = Number(row.quantity);
           const thr = Number(row.low_stock_threshold ?? 0);
           let status: "ok" | "low" | "out" = "ok";
           if (qty <= 0) status = "out";
           else if (qty <= thr) status = "low";
-          return { productId: row.product_id, name: p?.name ?? "Unknown", unit: p?.unit ?? "", locationId: row.location_id, locationName: locationMap.get(row.location_id) ?? "—", quantity: qty, threshold: thr, status };
+          return {
+            productId: row.product_id,
+            name: p?.name ?? "Unknown",
+            unit: p?.unit ?? "",
+            locationId: row.location_id,
+            locationName: locationMap.get(row.location_id) ?? "—",
+            quantity: qty,
+            threshold: thr,
+            status,
+          };
         })
         .filter((r) => r.status !== "ok")
         .sort((a, b) => (a.status === b.status ? a.quantity - b.quantity : a.status === "out" ? -1 : 1));
@@ -570,79 +706,110 @@ function StockReport({
       return {
         totalValue,
         currency,
-        byLocation: Array.from(byLocation.entries()).map(([lid, v]) => ({ location: locationMap.get(lid) ?? "—", value: v })),
+        byLocation: Array.from(byLocation.entries()).map(([lid, v]) => ({
+          location: locationMap.get(lid) ?? "—",
+          value: v,
+        })),
         fastest,
         lowStock,
       };
     },
   });
 
-  if (q.isLoading) return <Skeleton className="h-96 w-full" />;
+  if (q.isPending) return <Skeleton className="h-96 w-full" />;
   if (!q.data) return null;
   const d = q.data;
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Current stock value {locationId ? "(this location)" : "(all locations)"}</CardDescription>
-            <CardTitle className="font-display text-3xl">{fmtQAR(d.totalValue, d.currency)}</CardTitle>
-          </CardHeader>
+    <div className="space-y-4">
+      <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
+        <div className="bg-card p-4 md:p-5">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Current stock value {locationId ? "(this location)" : "(all locations)"}
+          </div>
+          <div className="tnum mt-1 font-display text-2xl font-semibold [overflow-wrap:normal]">
+            {formatMoney(d.totalValue, d.currency)}
+          </div>
           {role === "owner" && !locationId && d.byLocation.length > 0 && (
-            <CardContent className="pt-0">
-              <ul className="space-y-1 text-sm">
-                {d.byLocation.map((r) => (
-                  <li key={r.location} className="flex justify-between">
-                    <span className="text-muted-foreground">{r.location}</span>
-                    <span className="font-medium">{fmtQAR(r.value, d.currency)}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
+            <ul className="mt-2 space-y-1 text-sm">
+              {d.byLocation.map((r) => (
+                <li key={r.location} className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate text-muted-foreground">{r.location}</span>
+                  <span className="tnum shrink-0 font-medium [overflow-wrap:normal]">
+                    {formatMoney(r.value, d.currency)}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
-        </Card>
-        <SummaryCard label="Low / out of stock items" value={d.lowStock.length.toLocaleString()} />
+        </div>
+        <div className="bg-card p-4 md:p-5">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Low / out of stock items
+          </div>
+          <div className="tnum mt-1 font-display text-2xl font-semibold [overflow-wrap:normal]">
+            {d.lowStock.length.toLocaleString()}
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-display text-lg">Fastest-moving products</CardTitle>
-          <CardDescription>Top usage in the selected range.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {d.fastest.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No product usage in this range.</p>
-          ) : (
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={d.fastest} layout="vertical" margin={{ left: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" width={120} />
-                  <Tooltip formatter={(v: number, _n, p: any) => [`${v} ${p.payload.unit}`, "Used"]} />
-                  <Bar dataKey="qty" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <section className="rounded-lg border border-border bg-card p-4 md:p-5">
+        <h3 className="font-display text-base font-semibold">Fastest-moving products</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Top usage in the selected period.</p>
+        {d.fastest.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            No product usage in this period.
+          </p>
+        ) : (
+          <div className="mt-3 h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={d.fastest} layout="vertical" margin={{ left: 8, right: 8 }}>
+                <CartesianGrid stroke="var(--color-border)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={120}
+                />
+                <Tooltip
+                  cursor={{ fill: "var(--color-muted)" }}
+                  contentStyle={{
+                    background: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: number, _n, p: { payload?: { unit?: string } }) =>
+                    [`${v} ${p.payload?.unit ?? ""}`.trim(), "Used"] as [string, string]
+                  }
+                />
+                <Bar dataKey="qty" fill={palette[2]} radius={[0, 4, 4, 0]} maxBarSize={22} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </section>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+      <section className="rounded-lg border border-border bg-card p-4 md:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <CardTitle className="font-display text-lg flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-amber-600" />Low / out of stock</CardTitle>
-            <CardDescription>Restock from the Stock module.</CardDescription>
+            <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+              <AlertTriangle aria-hidden className="h-4 w-4 text-amber-600" />
+              Low / out of stock
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Restock from the Stock module.</p>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/app/stock">Open stock</Link>
           </Button>
-        </CardHeader>
-        <CardContent>
-          {d.lowStock.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Everything is well stocked.</p>
-          ) : (
+        </div>
+        {d.lowStock.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">Everything is well stocked.</p>
+        ) : (
+          <div className="mt-3 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -658,180 +825,26 @@ function StockReport({
                   <TableRow key={`${r.productId}-${r.locationId}`}>
                     <TableCell>{r.name}</TableCell>
                     {!locationId && <TableCell className="text-muted-foreground">{r.locationName}</TableCell>}
-                    <TableCell className="text-right">{r.quantity} {r.unit}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{r.threshold}</TableCell>
+                    <TableCell className="tnum text-right [overflow-wrap:normal]">
+                      {r.quantity} {r.unit}
+                    </TableCell>
+                    <TableCell className="tnum text-right text-muted-foreground [overflow-wrap:normal]">
+                      {r.threshold}
+                    </TableCell>
                     <TableCell>
-                      {r.status === "out"
-                        ? <Badge variant="destructive">Out</Badge>
-                        : <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">Low</Badge>}
+                      {r.status === "out" ? (
+                        <Badge variant="destructive">Out</Badge>
+                      ) : (
+                        <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">Low</Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// =========================================================
-// STAFF PERFORMANCE
-// =========================================================
-
-type SortKey = "revenue" | "completed" | "noShowRate" | "name";
-
-function StaffReport({
-  brandId, locationId, fromIso, toIso,
-}: {
-  brandId: string;
-  locationId: string | null;
-  fromIso: string;
-  toIso: string;
-}) {
-  const [sortBy, setSortBy] = useState<SortKey>("revenue");
-
-  const q = useQuery({
-    queryKey: ["report-staff", brandId, locationId, fromIso, toIso],
-    queryFn: async () => {
-      let apptQ = supabase
-        .from("appointments")
-        .select("id, staff_user_id, status, starts_at, location_id")
-        .eq("brand_id", brandId)
-        .gte("starts_at", fromIso)
-        .lte("starts_at", toIso);
-      if (locationId) apptQ = apptQ.eq("location_id", locationId);
-      const { data: appts, error: aErr } = await apptQ;
-      if (aErr) throw aErr;
-
-      let incQ = supabase
-        .from("income_records")
-        .select("amount, currency, appointment_id, location_id")
-        .eq("brand_id", brandId)
-        .gte("collected_at", fromIso)
-        .lte("collected_at", toIso);
-      if (locationId) incQ = incQ.eq("location_id", locationId);
-      const { data: income, error: iErr } = await incQ;
-      if (iErr) throw iErr;
-
-      const staffIds = Array.from(new Set((appts ?? []).map((a) => a.staff_user_id)));
-      const { data: profs, error: pErr } = staffIds.length
-        ? await supabase.from("profiles").select("id, full_name, email").in("id", staffIds)
-        : { data: [], error: null } as any;
-      if (pErr) throw pErr;
-      const nameMap = new Map<string, string>((profs ?? []).map((p: any) => [p.id, p.full_name || p.email || "—"]));
-
-      const apptById = new Map((appts ?? []).map((a) => [a.id, a]));
-      const revenueByStaff = new Map<string, number>();
-      for (const r of income ?? []) {
-        if (!r.appointment_id) continue;
-        const a = apptById.get(r.appointment_id);
-        if (!a) continue;
-        revenueByStaff.set(a.staff_user_id, (revenueByStaff.get(a.staff_user_id) ?? 0) + Number(r.amount));
-      }
-
-      const perStaff = new Map<string, { completed: number; noShow: number; nonCancelled: number }>();
-      for (const a of appts ?? []) {
-        const cur = perStaff.get(a.staff_user_id) ?? { completed: 0, noShow: 0, nonCancelled: 0 };
-        if (a.status !== "cancelled") cur.nonCancelled += 1;
-        if (a.status === "completed") cur.completed += 1;
-        if (a.status === "no_show") cur.noShow += 1;
-        perStaff.set(a.staff_user_id, cur);
-      }
-
-      const currency = (income ?? [])[0]?.currency ?? "QAR";
-
-      const rows = staffIds.map((id) => {
-        const s = perStaff.get(id) ?? { completed: 0, noShow: 0, nonCancelled: 0 };
-        return {
-          id,
-          name: nameMap.get(id) ?? "—",
-          completed: s.completed,
-          revenue: revenueByStaff.get(id) ?? 0,
-          noShowRate: s.nonCancelled > 0 ? s.noShow / s.nonCancelled : 0,
-        };
-      });
-
-      return { rows, currency };
-    },
-  });
-
-  const sorted = useMemo(() => {
-    if (!q.data) return [];
-    const r = [...q.data.rows];
-    r.sort((a, b) => {
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      if (sortBy === "completed") return b.completed - a.completed;
-      if (sortBy === "noShowRate") return b.noShowRate - a.noShowRate;
-      return b.revenue - a.revenue;
-    });
-    return r;
-  }, [q.data, sortBy]);
-
-  if (q.isLoading) return <Skeleton className="h-96 w-full" />;
-  if (!q.data) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-display text-lg">Staff performance</CardTitle>
-        <CardDescription>Cancelled appointments excluded from the no-show denominator.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {sorted.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No appointments in this range.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortHead active={sortBy === "name"} onClick={() => setSortBy("name")}>Staff</SortHead>
-                <SortHead active={sortBy === "completed"} onClick={() => setSortBy("completed")} className="text-right">Completed</SortHead>
-                <SortHead active={sortBy === "revenue"} onClick={() => setSortBy("revenue")} className="text-right">Revenue</SortHead>
-                <SortHead active={sortBy === "noShowRate"} onClick={() => setSortBy("noShowRate")} className="text-right">No-show rate</SortHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell className="text-right">{r.completed}</TableCell>
-                  <TableCell className="text-right">{fmtQAR(r.revenue, q.data.currency)}</TableCell>
-                  <TableCell className="text-right">
-                    <span className={cn(
-                      "font-medium",
-                      r.noShowRate >= 0.15 ? "text-red-700" : r.noShowRate >= 0.05 ? "text-amber-700" : "text-muted-foreground"
-                    )}>
-                      {(r.noShowRate * 100).toFixed(1)}%
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SortHead({ children, active, onClick, className }: { children: React.ReactNode; active: boolean; onClick: () => void; className?: string }) {
-  return (
-    <TableHead className={className}>
-      <button onClick={onClick} className={cn("inline-flex items-center gap-1 hover:text-foreground transition-colors", active ? "text-foreground font-semibold" : "text-muted-foreground")}>
-        {children}
-      </button>
-    </TableHead>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="font-display text-3xl">{value}</CardTitle>
-      </CardHeader>
-    </Card>
+      </section>
+    </div>
   );
 }

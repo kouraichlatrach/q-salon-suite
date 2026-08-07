@@ -106,6 +106,9 @@ function PackagesPage() {
   const role = tenant.data?.primaryRole;
   const canSell = role === "owner" || role === "manager" || role === "receptionist";
   const isOwner = role === "owner";
+  // Read the catalogue: Owner and Manager. Write it: Owner only, enforced by
+  // the `package_types_manage` policy (`is_brand_owner`), not by this flag.
+  const canViewCatalogue = role === "owner" || role === "manager";
   // Refunds and goodwill extensions are an Owner/Manager decision, matching the
   // check inside package_refund — a receptionist can sell, but not reverse.
   const canAdjust = role === "owner" || role === "manager";
@@ -620,26 +623,35 @@ function PackagesPage() {
               </CardContent>
             </Card>
 
-            {isOwner && (
+            {/* Visible to Owner and Manager; only the Owner can change anything.
+                RLS already grants every brand member SELECT on package_types —
+                hiding the card from Managers showed them less than the database
+                was willing to, and left someone who sells packages unable to
+                check what is in one or whether it had been withdrawn. Mirrors
+                the read-only treatment on Services. */}
+            {canViewCatalogue && (
               <Card>
                 <CardHeader className="flex-row items-start justify-between space-y-0 pb-3">
                   <div>
                     <CardTitle className="font-display text-lg">Package catalogue</CardTitle>
                     <CardDescription>
-                      What's on offer. Withdrawing one stops new sales without touching packages
-                      already sold.
+                      {isOwner
+                        ? "What's on offer. Withdrawing one stops new sales without touching packages already sold."
+                        : "What's on offer. Read-only — only the Owner can add or withdraw a package."}
                     </CardDescription>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => setDefOpen(true)}>
-                    <Plus className="mr-1 h-3.5 w-3.5" /> New
-                  </Button>
+                  {isOwner && (
+                    <Button size="sm" variant="outline" onClick={() => setDefOpen(true)}>
+                      <Plus className="mr-1 h-3.5 w-3.5" /> New
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
                   {typesQuery.isLoading ? (
                     <Skeleton className="h-24 w-full" />
                   ) : types.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No packages defined yet. Create one to start selling.
+                      No packages defined yet.{isOwner && " Create one to start selling."}
                     </p>
                   ) : (
                     <div className="space-y-3">
@@ -673,14 +685,20 @@ function PackagesPage() {
                               {t.expiry_months ? `${t.expiry_months} month expiry` : "no expiry"}
                             </p>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => toggleType.mutate({ id: t.id, status: t.status })}
-                            disabled={toggleType.isPending}
-                          >
-                            {t.status === "active" ? "Withdraw" : "Re-list"}
-                          </Button>
+                          {/* The status still reads on a Manager's row via the
+                              "Withdrawn" badge above; what goes is the ability
+                              to change it. Rendering a disabled button instead
+                              would advertise an action they can never take. */}
+                          {isOwner && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleType.mutate({ id: t.id, status: t.status })}
+                              disabled={toggleType.isPending}
+                            >
+                              {t.status === "active" ? "Withdraw" : "Re-list"}
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -63,6 +63,12 @@ Multi-tenant SaaS for beauty salon chains in Qatar. Owners subscribe (monthly/ye
 
 ---
 
+> **Who can do what:** see **Section 15 — Access Control Matrix**, the standing
+> reference for every role against every module. Check it before changing a
+> policy, adding a route, or widening a filter.
+
+---
+
 ## 4. Known Working Patterns & Bug Classes to Watch For
 
 These are lessons earned the hard way — worth checking for explicitly in every future module, not just fixed once and forgotten.
@@ -541,6 +547,166 @@ untouched while direct writes to plan/add-ons/limits are still refused.
 6. **The header badge is the notification mechanism**, because there is no
    working outbound send yet (Section 10 is blocked on a paid Twilio account).
    When WhatsApp/email is unblocked, this is a natural second consumer.
+
+---
+
+## 15. Access Control Matrix — the permanent reference
+
+The one place to check "who can do what" before changing a policy, adding a
+route, or widening a filter. Added 2026-08-07 after a session that found two
+separate role-boundary defects in one afternoon.
+
+**Read the rule before reading the table.**
+
+> **Every boundary here is enforced in the database — RLS policies, triggers, or
+> `SECURITY DEFINER` functions. The UI only mirrors it.**
+
+That is not an aspiration, it is a scar. This project has three documented cases
+where a restriction that existed only in the UI, or a check that looked correct
+in SQL, silently failed:
+
+- **§4.13 — the bookable-staff RLS read gap.** `user_roles` had no SELECT policy
+  for Receptionists, so their staff dropdown quietly listed exactly one option:
+  themselves. Nothing errored, nothing was empty. Roughly 125 appointments were
+  booked against non-Staff accounts before anyone noticed.
+- **§4.12 — the billing guard that exempted everybody.** `guard_brand_billing_columns`
+  tested `current_user IN ('postgres', …)`, which inside a `SECURITY DEFINER`
+  function is the function's *owner*, always true. The trigger was attached, the
+  schema was correct, `db push` succeeded, and an Owner could still set their own
+  `max_locations` to 999.
+- **§4.10 — `GRANT UPDATE` on `brands`.** RLS filters rows, never columns, so a
+  table-wide grant handed Owners every column on any row they could reach —
+  including the very plan limits the triggers read to constrain them.
+
+The lesson each time was the same: **a boundary that only the UI knows about is
+not a boundary**, and a boundary that fails open looks exactly like one that
+works. Anything added to this table needs a test that impersonates the real
+role, not a code review that reads the policy.
+
+### Roles
+
+`owner` · `manager` · `receptionist` · `staff` — from `user_roles`, resolved by
+`useTenant()` with priority owner > manager > receptionist > staff. Platform
+Admin is **not** a `user_roles` role; it is separate membership in
+`platform_admins`, checked via `is_platform_admin()`, and is orthogonal to brand
+role.
+
+### The matrix
+
+Legend — **✅ full** · **◐ scoped** (limited to their location, or to their own
+records) · **👁 read-only** · **❌ no access**
+
+| Capability | Owner | Manager | Receptionist | Staff | Platform Admin |
+|---|---|---|---|---|---|
+| **Clients** (`/app/clients`) | ✅ brand-wide | ✅ write | ✅ write | ❌ not in nav | ❌ |
+| **Staff list** (`/app/staff`) | ✅ brand-wide | ◐ location | ❌ | ❌ | ❌ |
+| **Staff profile — non-PII** (photo, performance) | ✅ brand-wide | ✅ brand-wide read | ❌ | ❌ | ❌ |
+| **Staff profile — PII tier** (QID, DOB, address) | ✅ brand-wide | ◐ **own location only** | ❌ | ❌ | ❌ |
+| **Staff schedule / leave** | ✅ | ✅ edit | ❌ | ❌ | ❌ |
+| **Appointments** (`/app/appointments`) | ✅ all locations, switchable | ◐ own location | ◐ own location | ◐ **own appointments only** | ❌ |
+| **Bookable-staff restriction** | only `role='staff'` may hold an appointment — applies to everyone, no exceptions | ← | ← | ← | ← |
+| **Services & pricing** (`/app/services`) | ✅ + per-location overrides | ✅ (no overrides) | ❌ | ❌ | ❌ |
+| **Stock** (`/app/stock`) | ✅ manage | ✅ manage | 👁 view | ❌ | ❌ |
+| **Gift cards** (`/app/gift-cards`) | ✅ sell/redeem | ✅ sell/redeem | ✅ sell/redeem | ❌ | ❌ |
+| **Packages — catalogue create/edit/withdraw** (`package_types`) | ✅ **only party who can** | ❌ | ❌ | ❌ | ❌ |
+| **Packages — catalogue view** | ✅ | 👁 read-only | ❌ not in page | ❌ | ❌ |
+| **Packages — sell to a client** | ✅ | ✅ ◐ own location | ✅ ◐ own location | ❌ | ❌ |
+| **Packages — refund / goodwill extension** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **Payments — deposits & settlement** | ✅ | ✅ | ✅ (at checkout) | ❌ | ❌ |
+| **WhatsApp consent capture** | ✅ grant | ✅ grant | ✅ grant | ❌ | ❌ |
+| **Reports** (`/app/reports`) | ✅ brand-wide, all-locations view | ◐ **own location, forced** | ❌ **none — see note** | ❌ | ❌ |
+| **Locations** (`/app/locations`) | ✅ | ❌ | ❌ | ❌ | 👁 via `/admin` |
+| **Settings** (`/app/settings`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Plan / billing columns** (plan, limits, add-ons, billing dates) | ❌ **cannot write** — may only *request* | ❌ | ❌ | ❌ | ✅ **only party who can** |
+| **Plan change request** | ✅ raise | ❌ | ❌ | ❌ | ✅ process by hand |
+| **Self-Booking Portal** (`/book/:brandSlug`, `/manage/:token`) | public — unauthenticated, token-scoped per booking | ← | ← | ← | ← |
+| **Platform Admin panel** (`/admin`) | ❌ | ❌ | ❌ | ❌ | ✅ gated on `platform_admins` |
+
+### Notes on the entries that surprise people
+
+**Receptionist has no Reports access at all.** This is an **inherited gate, not a
+decision made when Reports was rebuilt on 2026-08-07.** The check
+(`role !== "owner" && role !== "manager"`) predates that work and was carried
+forward deliberately and unchanged, on the grounds that widening it would be new
+data exposure and should be an explicit choice rather than a side effect of a
+redesign. It is flagged here because it is genuinely arguable: a Receptionist
+already sees appointments, sells gift cards and packages, and takes payment at
+checkout, so a narrow "today's takings" view might be reasonable. **If it is ever
+revisited, it is a deliberate widening and needs its own sign-off** — do not
+treat the current state as an accident to be tidied up.
+
+**Packages split three ways, and the single row this table used to carry
+overstated the Manager.** Creating a *package type* — the catalogue definition,
+carrying a price and a bundle of services — is Owner-only, enforced by
+`package_types_manage` (`FOR ALL … USING is_brand_owner`). *Selling* an existing
+one runs through the `package_sell` RPC gated on `can_manage_location`, which
+admits Owner/Manager/Receptionist and is location-scoped for the latter two;
+`client_packages` carries only `GRANT SELECT` to `authenticated`, so a sale
+cannot bypass that RPC. This mirrors `services` exactly — same `is_brand_owner`
+policy shape, same member-read/owner-write split — and is deliberate: a package
+defines a price, and pricing is an Owner decision throughout this product.
+
+The catalogue was **invisible to Managers until 2026-08-07**, which was a UI
+defect rather than a policy one: RLS has always granted every brand member
+SELECT on `package_types`, so the page was showing less than the database
+allowed, and someone who sells packages could not check what was in one or
+whether it had been withdrawn. Now a read-only card, matching the Services
+treatment. **The write restriction was left exactly as it was** — it is correct.
+
+**Owner cannot change their own plan.** Enforced by
+`guard_brand_billing_columns`, a BEFORE UPDATE trigger on `brands` that rejects
+writes to plan/limit/add-on/billing columns unless the caller is a Platform Admin
+or a server-side role. Owners raise a request; an admin applies it by hand
+(Section 14). This exists because the plan-limit triggers *read* those columns to
+decide what the Owner is allowed — the constrained party must never be able to
+write the number that constrains them.
+
+**Manager location scoping fails closed.** A Manager with no `location_id` gets
+**no data**, not brand-wide data. The Reports page returned brand-wide figures in
+that case until 2026-08-07: `effectiveLocationId` resolved to `null`, and `null`
+downstream meant "no location filter". Any new location-scoped screen must treat
+a missing location as *deny*, never as *unfiltered*.
+
+**Manager PII scope is location-only and is ratified.** See Section 13 — this
+reads like a deviation from the original brief and is not one. It was confirmed
+by the owner on 2026-08-06 and must not be "restored" to brand-wide on the
+strength of the brief text.
+
+**Staff see only their own appointments.** The `/app/appointments` route branches
+to a separate personal-diary component for `role='staff'`, and the query is
+pinned to `staff_user_id = auth.uid()` before any filter from the URL is applied.
+Filters narrow within that boundary; none of them can widen it.
+
+### Where the enforcement actually lives
+
+| Boundary | DB object | Regression test |
+|---|---|---|
+| Bookable staff = `role='staff'` only | `enforce_bookable_staff_role` trigger | `supabase/tests/bookable_staff_regression.sql`, `bookable_staff_negative_control.sql` |
+| Who may read staff PII | `can_view_staff_pii()`, called by all four policies **and** the UI | `supabase/tests/staff_profile_regression.sql` |
+| Owner cannot write plan/limits | `guard_brand_billing_columns` trigger | `supabase/tests/billing_guard_regression.sql` |
+| Plan limits (locations, staff) | `enforce_location_plan_limit` (advisory-locked), `enforce_staff_plan_limit` (⚠ still races, §4.11) | `supabase/tests/plan_limits_verification.sql` |
+| Package catalogue write = Owner | `package_types_manage` / `package_services_manage` (`is_brand_owner`) | `supabase/tests/package_catalogue_regression.sql` — ✅ passed 2026-08-08 |
+| Package sale = location-scoped roles | `package_sell` RPC via `can_manage_location`; `client_packages` has SELECT only | — ⚠ none |
+| Plan change requests | request table + admin-only processing | `supabase/tests/plan_request_regression.sql` |
+| Platform admin | `platform_admins` + `is_platform_admin()` | — |
+
+**Gaps in this table's own coverage, stated honestly:** there is no automated
+regression test for the Reports location scoping, the Staff-role appointment
+boundary, or the package *sale* path. Those were verified by signing in as the
+restricted role and checking the outgoing query or the rendered page, which is
+better than reading the SQL and worse than a committed test. Each deserves one in
+the style of `bookable_staff_regression.sql`.
+
+✅ **`package_catalogue_regression.sql` passed on 2026-08-08**, run manually in
+the Supabase SQL Editor. Every assertion in it is written to *raise* on failure,
+so a clean run with no error is the pass condition — the editor does not surface
+`RAISE NOTICE` output, which is why the successful result reads as
+"Success. No rows returned" rather than a list of PASS lines. It also confirms
+two things no other test here had exercised: re-impersonating three times in one
+transaction (`RESET ROLE` then a fresh `SET LOCAL`), and the asymmetry that
+INSERT *raises* `insufficient_privilege` while UPDATE/DELETE *silently* affect
+zero rows because `USING` hides the row rather than erroring. Both patterns are
+now proven and can be reused.
 
 ---
 
