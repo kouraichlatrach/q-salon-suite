@@ -18,11 +18,18 @@
 -- editor does not surface RAISE NOTICE output, so nothing important is
 -- reported only as a notice.
 --
---   Stage 1  wipe            (this file, below)
---   Stage 2  accounts        4 brands, 4–17 accounts each, 42 total
+--   Stage 1  wipe            37 tables, FK-safe order
+--   Stage 2  accounts        4 brands, 9 locations, 42 accounts
 --   Stage 3  sample data     services, products, clients, schedules,
 --                            appointments, gift cards, packages
---   Stage 4  verification    final counts + invariant checks
+--
+-- Three stages, not four. Each one ends with its own verification SELECT, so
+-- there is no separate verification pass to run afterwards — the checks that
+-- matter (plan-limit headroom, the bookable-staff restriction, appointment
+-- overlaps) are computed at the end of the stage that could break them.
+--
+-- All three were run against the hosted database on 2026-08-07/08 and verified
+-- from their result tables.
 --
 -- ===========================================================================
 -- STAGE 1 — WIPE
@@ -234,8 +241,11 @@ ORDER BY 1;
 --   * the TOTAL row should read 'ALL CLEAN'
 --   * app_job_config is intentionally absent from this report — untouched
 --
--- Paste the results back before running Stage 2. Stages 2–4 are appended to
--- this file once Stage 1 is confirmed.
+-- Confirm those before running Stage 2 — a partial wipe would seed on top of
+-- surviving rows rather than into an empty database.
+--
+-- RESULT OF THE 2026-08-07 RUN: 37/37 tables clean, 1,042 rows deleted, zero
+-- remaining.
 -- ===========================================================================
 
 
@@ -542,6 +552,12 @@ SELECT
   END
 ) x
 ORDER BY ord, "brand";
+
+-- ===========================================================================
+-- RESULT OF THE 2026-08-07 RUN: 4 brands with limits 1/10, 1/20, 3/50 and
+-- 999/999; locations 1, 1, 3, 4; accounts 5, 7, 13, 17 = 42. limit_state 'ok'
+-- on every brand.
+-- ===========================================================================
 
 -- ===========================================================================
 -- RE-ADD YOURSELF AS PLATFORM ADMIN
@@ -1045,3 +1061,17 @@ SELECT
       AND a.starts_at < a2.ends_at AND a.ends_at > a2.starts_at)
 ) x
 ORDER BY ord, "brand";
+
+-- ===========================================================================
+-- RESULT OF THE 2026-08-08 RUN: 24 appointments per brand across all four,
+-- gift cards and packages seeded as specified, and — the two that matter —
+-- bookable_violations 0 and overlaps 0 on every brand.
+--
+-- Those last two are the point of this report. They recompute the
+-- bookable-staff restriction and the appointment-overlap rule from the seeded
+-- data rather than trusting that the triggers fired, because this project has
+-- twice found an enforcement guard that was attached, looked correct, and did
+-- nothing (§4.12, §4.13).
+--
+-- End of the reset. There is no further stage.
+-- ===========================================================================
