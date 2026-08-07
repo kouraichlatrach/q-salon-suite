@@ -260,11 +260,11 @@ function ReportsInner() {
 
       // --- income in range, by collected_at
       //
-      // With a staff/service filter active the join is INNER, so income that
-      // isn't tied to a matching appointment drops out — a gift-card sale
+      // With a staff/service filter active the join is INNER, so income whose
+      // appointment doesn't match drops out — money for someone else's visit
       // genuinely does not belong to "revenue for Amal". With no filter the
-      // plain select keeps that unattributed income, and it surfaces as its own
-      // labelled row rather than vanishing.
+      // plain select keeps income whose visit falls outside the period, and it
+      // surfaces as its own labelled row rather than vanishing.
       let incQ = supabase
         .from("income_records")
         .select(entityFiltered ? "amount, currency, collected_at, appointment_id, location_id, appointments!inner(id)" : "amount, currency, collected_at, appointment_id, location_id")
@@ -523,7 +523,7 @@ function ReportsInner() {
                 />
                 <BreakdownBars
                   title="Revenue by staff"
-                  note="Sums to the same total as by-service — sales with no appointment appear in both as one labelled row."
+                  note="Sums to the same total as by-service. Money collected in this period for a visit outside it appears in both as one labelled row, rather than being attributed to a guess."
                   rows={stats.byStaff.rows}
                   total={stats.byStaff.total}
                   currency={stats.currency}
