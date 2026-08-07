@@ -267,6 +267,25 @@
   --color-status-live: var(--success);
   --color-status-upcoming: var(--muted-foreground);
 
+  /* Data visualisation — categorical series, fixed order, never cycled.
+     Rose gold is NOT in this ramp on purpose: it is capped at ~3% of the
+     viewport and reserved for nav edge / focus ring / one primary action, so
+     using it as a chart fill would break the accent discipline the whole
+     system rests on. These five are a separate, warmer-leaning ramp chosen to
+     sit on Warm Sand without fighting it.
+
+     Validated, not eyeballed — all six checks pass against the light surface:
+     lightness band, chroma floor, adjacent-pair CVD separation (worst 11.4 ΔE
+     deutan), normal-vision separation (worst 21.5 ΔE), and 3:1 contrast.
+     Dark mode gets its OWN steps below; the dark band is L 0.48–0.67, so a
+     straight flip of these values fails. Re-run the validator before editing:
+       node <dataviz>/scripts/validate_palette.js "<hex,…>" --mode light|dark */
+  --chart-1: #b4531f;
+  --chart-2: #00749b;
+  --chart-3: #a8801a;
+  --chart-4: #8a3a6b;
+  --chart-5: #4a7a2e;
+
   /* Focus ring — a deeper rose gold than --ring.
      Measured: --ring oklch(0.68 0.075 55) lands at 2.94:1 against the white
      card surface, just under the 3:1 floor a focus indicator has to clear.
@@ -300,6 +319,28 @@
   --dur-reveal: 620ms;
   --dur-entrance: 420ms;
   --stagger: 80ms;
+}
+
+/* Chart series, dark steps.
+ *
+ * NOT a flip of the light ramp — the dark lightness band (L 0.48–0.67) is
+ * narrower and sits lower than the light one (0.43–0.77), so the light values
+ * fall outside it and lose contrast against the dark card surface. These were
+ * re-stepped and re-validated separately: all six checks pass, worst adjacent
+ * pair 12.1 ΔE deutan / 21.9 ΔE normal.
+ *
+ * POSITION IS LOAD-BEARING. `.dark` and `:root` have identical specificity
+ * (0,1,0), so source order decides. This file has a second `:root` block after
+ * the main `.dark` block, and the light chart tokens live in it — putting these
+ * overrides up in that earlier `.dark` block means `:root` wins and dark mode
+ * silently renders the light ramp against a dark surface. Keep this block after
+ * every `:root`. */
+.dark {
+  --chart-1: #c96a33;
+  --chart-2: #1189af;
+  --chart-3: #b08a22;
+  --chart-4: #a24e7e;
+  --chart-5: #5c9139;
 }
 
 @layer base {

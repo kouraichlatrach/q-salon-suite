@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "test:stats": "tsx src/lib/report-stats.test.mts",
     "format": "prettier --write ."
   },
   "dependencies": {
