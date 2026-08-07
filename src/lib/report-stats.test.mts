@@ -19,7 +19,11 @@ function eq(label: string, got: unknown, want: unknown) {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${ok ? "" : `\n        got ${g}\n        want ${w}`}`);
 }
 
-// ---- fixture: 4 appointments, 2 staff, 2 services; 5 income rows incl. 1 gift card
+// ---- fixture: 5 appointments, 2 staff, 2 services; 5 income rows.
+// Two rows land in the "Outside this period" bucket: one with a null
+// appointment_id (not reachable in the real schema, kept as a defensive case)
+// and one pointing at an appointment the caller cannot see, which is the case
+// that actually occurs — money collected in range for a visit outside it.
 const appts: ApptRow[] = [
   A("a1", { staff_user_id: "s1", service_id: "sv1", status: "completed" }),
   A("a2", { staff_user_id: "s1", service_id: "sv2", status: "no_show", client_id: "c2" }),
@@ -41,13 +45,13 @@ const staffName = (id: string) => ({ s1: "Amal", s2: "Noor" })[id] ?? id;
 // ---- revenue by service: sv1 = 100+50+200 = 350, sv2 = 0, unattributed = 300+25 = 325
 const byService = revenueBreakdown(income, apptById, "service", svcName);
 eq("byService total", byService.total, 675);
-eq("byService rows", byService.rows.map((r) => [r.name, r.amount]), [["Blowout", 350], ["Not tied to an appointment", 325]]);
+eq("byService rows", byService.rows.map((r) => [r.name, r.amount]), [["Blowout", 350], ["Outside this period", 325]]);
 eq("unattributed sorted last", byService.rows[byService.rows.length - 1].key, UNATTRIBUTED_KEY);
 
 // ---- revenue by staff: s1 = 150, s2 = 200, unattributed = 325 -> SAME total
 const byStaff = revenueBreakdown(income, apptById, "staff", staffName);
 eq("byStaff total equals byService total", byStaff.total, byService.total);
-eq("byStaff rows", byStaff.rows.map((r) => [r.name, r.amount]), [["Noor", 200], ["Amal", 150], ["Not tied to an appointment", 325]]);
+eq("byStaff rows", byStaff.rows.map((r) => [r.name, r.amount]), [["Noor", 200], ["Amal", 150], ["Outside this period", 325]]);
 eq("shares sum to 1", Math.round(byStaff.rows.reduce((s, r) => s + r.share, 0) * 1e6) / 1e6, 1);
 
 // ---- average ticket: attributed 350 over 2 distinct visits (a1, a4) = 175

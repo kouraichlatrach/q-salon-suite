@@ -58,19 +58,28 @@ function num(v: number | string): number {
 /**
  * Revenue grouped by whatever the appointment points at (service or staff).
  *
- * Income with no `appointment_id` — package sales and gift-card sales, which
- * this product recognises at the moment of sale — cannot belong to a service or
- * a staff member. It is returned as an explicit `Unattributed` row rather than
- * being silently dropped, so **both** breakdowns sum to the same headline total.
- * The old code bucketed it into by-service but dropped it from by-staff, giving
- * two tables that looked comparable and weren't.
+ * Some income cannot be attributed to a service or a staff member. It is
+ * returned as an explicit labelled row rather than being silently dropped, so
+ * **both** breakdowns sum to the same headline total. The old code bucketed it
+ * into by-service but dropped it from by-staff, giving two tables that looked
+ * comparable and weren't.
+ *
+ * WHAT ACTUALLY LANDS IN THAT ROW — the label used to claim "not tied to an
+ * appointment", which cannot happen: `income_records.appointment_id` is NOT
+ * NULL, so every income row has one. The reachable case is the second branch
+ * below: the appointment exists but is **not in `apptById`**, because the money
+ * was collected inside the selected period while the visit itself sits outside
+ * it. Paying in July for a June appointment is the everyday example.
+ *
+ * Hence "Outside this period". The arithmetic was always right; the old wording
+ * described a state the schema forbids.
  */
 export function revenueBreakdown(
   income: IncomeRow[],
   apptById: Map<string, ApptRow>,
   dimension: "service" | "staff",
   nameFor: (id: string) => string,
-  unattributedLabel = "Not tied to an appointment",
+  unattributedLabel = "Outside this period",
 ): { rows: BreakdownRow[]; total: number } {
   const totals = new Map<string, number>();
   let total = 0;
@@ -80,8 +89,10 @@ export function revenueBreakdown(
     total += amount;
 
     const appt = r.appointment_id ? apptById.get(r.appointment_id) : undefined;
-    // An income row whose appointment we cannot see is unattributed too —
-    // guessing would invent a number.
+    // The `!appt` branch is the reachable one, and it means "the visit is
+    // outside the selected period", not "there is no visit" — appointment_id is
+    // NOT NULL in the schema. Guessing an owner for it would invent a number,
+    // so it stays in its own labelled row.
     const key =
       !appt
         ? UNATTRIBUTED_KEY
@@ -99,8 +110,8 @@ export function revenueBreakdown(
       amount,
       share: total > 0 ? amount / total : 0,
     }))
-    // Unattributed always sits last regardless of size — it is context, not a
-    // competitor to the real rows.
+    // The outside-this-period row always sits last regardless of size — it is
+    // context, not a competitor to the real rows.
     .sort((a, b) => {
       if (a.key === UNATTRIBUTED_KEY) return 1;
       if (b.key === UNATTRIBUTED_KEY) return -1;
@@ -115,8 +126,9 @@ export function revenueBreakdown(
  *
  * Numerator and denominator both come from income rows that landed in the
  * range: total attributed revenue over the number of *distinct appointments*
- * that produced it. Unattributed income is excluded from both halves — a gift
- * card sale is not a visit and would drag the average toward nonsense.
+ * that produced it. Income whose visit falls outside the period is excluded
+ * from **both** halves — counting the money without the visit inflates the
+ * average, and counting the visit without being able to see it is guesswork.
  */
 export function averageTicket(
   income: IncomeRow[],
